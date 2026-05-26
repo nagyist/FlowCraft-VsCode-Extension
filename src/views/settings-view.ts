@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { StateManager } from '../state/state-manager';
 import { APIKeyService } from '../services/api-key-service';
+import { AuthService } from '../services/auth-service';
 import { Settings, Provider } from '../types';
 import { setupMessageListener, getNonce, getWebviewUri } from '../utils/webview-utils';
 
@@ -11,7 +12,8 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly stateManager: StateManager,
-    private readonly apiKeyService: APIKeyService
+    private readonly apiKeyService: APIKeyService,
+    private readonly authService: AuthService
   ) {}
 
   async resolveWebviewView(
@@ -38,12 +40,30 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
       saveSettings: async (data: any) => this.saveSettings(data),
       testConnection: async (data: { provider: string, apiKey: string }) => this.testConnection(data),
       resetSettings: async () => this.resetSettings(),
-      resetApiKeys: async () => { await vscode.commands.executeCommand('flowcraft.resetApiKey'); }
+      resetApiKeys: async () => { await vscode.commands.executeCommand('flowcraft.resetApiKey'); },
+      signIn:  async () => { await vscode.commands.executeCommand('flowcraft.signIn'); },
+      signOut: async () => { await vscode.commands.executeCommand('flowcraft.signOut'); }
     });
 
     // Update on state changes
     this.stateManager.onStateChange(() => {
       this.sendSettingsData();
+    });
+
+    // Update on auth changes
+    this.authService.onDidChangeSession(() => {
+      this.sendAccountData();
+    });
+  }
+
+  private async sendAccountData(): Promise<void> {
+    if (!this._view) return;
+    const session = await this.authService.getSession();
+    this._view.webview.postMessage({
+      command: 'accountUpdated',
+      data: session
+        ? { signedIn: true, email: session.email }
+        : { signedIn: false },
     });
   }
 
@@ -58,11 +78,15 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
         providers[provider] = await this.apiKeyService.has(provider);
       }
 
+      const session = await this.authService.getSession();
       this._view.webview.postMessage({
         command: 'updateSettings',
         data: {
           settings,
-          providers
+          providers,
+          account: session
+            ? { signedIn: true, email: session.email }
+            : { signedIn: false }
         }
       });
     }

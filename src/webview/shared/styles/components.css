@@ -1,237 +1,266 @@
 /**
- * Flat, TUI-ish components. Sharp corners, monospace everywhere,
- * focus shown with a hard 1px border rather than shadows or glows.
+ * FlowCraft — shared components, Apple HIG-flavored.
+ *
+ * Buttons read like macOS controls: continuous corners, subtle interior
+ * highlight, blue primary. Inputs use a soft "filled" style à la System
+ * Settings. Focus is shown with a 3px tinted ring rather than a hard outline.
  */
+
+[hidden] { display: none !important; }
 
 /* ——————— Button ——————— */
 .btn {
+  --btn-bg: color-mix(in srgb, var(--fc-fg) 6%, transparent);
+  --btn-bg-hi: color-mix(in srgb, var(--fc-fg) 10%, transparent);
+  --btn-fg: var(--fc-fg-strong, var(--fc-fg));
+
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--fc-sp-3);
-  padding: var(--fc-sp-3) var(--fc-sp-5);
-  font-family: var(--fc-font-mono);
+  padding: 7px 14px;
+  font-family: var(--fc-font-ui);
   font-size: var(--fc-fs);
-  color: var(--fc-fg);
-  background: transparent;
-  border: 1px solid var(--fc-border);
-  border-radius: var(--fc-radius-1);
+  font-weight: 510;
+  letter-spacing: -0.005em;
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  border: 1px solid transparent;
+  border-radius: var(--fc-radius-2);
   cursor: pointer;
-  transition: background var(--fc-t-fast), border-color var(--fc-t-fast), color var(--fc-t-fast);
-  white-space: nowrap;
   user-select: none;
+  white-space: nowrap;
   line-height: 1.2;
+  transition:
+    background var(--fc-t-fast),
+    color var(--fc-t-fast),
+    transform var(--fc-t-fast),
+    box-shadow var(--fc-t-fast);
 }
-.btn:hover {
-  background: var(--fc-surface);
-  border-color: var(--fc-fg-muted);
-}
-.btn:active { transform: translateY(1px); }
+.btn:hover { background: var(--btn-bg-hi); }
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { box-shadow: var(--fc-ring); }
 
 .btn-primary {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-  border-color: var(--vscode-button-background);
+  --btn-bg: linear-gradient(180deg, var(--fc-accent-hi), var(--fc-accent));
+  --btn-bg-hi: linear-gradient(180deg,
+    color-mix(in srgb, var(--fc-accent-hi) 100%, #fff 8%),
+    var(--fc-accent-hi));
+  --btn-fg: var(--fc-accent-fg);
+  background: var(--btn-bg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.18) inset,
+    0 1px 2px rgba(0,0,0,.18),
+    0 6px 16px -8px color-mix(in srgb, var(--fc-accent) 65%, transparent);
 }
-.btn-primary:hover {
-  background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-  border-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+.btn-primary:hover { background: var(--btn-bg-hi); }
+
+.btn-ghost {
+  --btn-bg: transparent;
+  --btn-bg-hi: color-mix(in srgb, var(--fc-fg) 7%, transparent);
+  color: var(--fc-fg-muted);
 }
+.btn-ghost:hover { color: var(--fc-fg); }
 
-.btn-ghost { border-color: transparent; color: var(--fc-fg-muted); }
-.btn-ghost:hover { color: var(--fc-fg); background: var(--fc-surface); border-color: var(--fc-border); }
-
-.btn-sm { padding: var(--fc-sp-2) var(--fc-sp-4); font-size: var(--fc-fs-sm); }
+.btn-sm {
+  padding: 5px 11px;
+  font-size: var(--fc-fs-sm);
+  border-radius: 8px;
+}
 
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; padding: 0;
+  width: 30px; height: 30px; padding: 0;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--fc-fg-muted);
   cursor: pointer;
-  border-radius: var(--fc-radius-1);
-  transition: color var(--fc-t-fast), background var(--fc-t-fast), border-color var(--fc-t-fast);
+  border-radius: 9px;
+  transition: color var(--fc-t-fast), background var(--fc-t-fast), transform var(--fc-t-fast);
 }
-.btn-icon:hover { color: var(--fc-fg); background: var(--fc-surface); border-color: var(--fc-border); }
-.btn-icon i { font-size: 14px; }
+.btn-icon:hover {
+  color: var(--fc-fg);
+  background: color-mix(in srgb, var(--fc-fg) 8%, transparent);
+}
+.btn-icon:active { transform: scale(.92); }
+.btn-icon:focus-visible { box-shadow: var(--fc-ring); }
+.btn-icon i { font-size: 15px; }
 
-/* ——————— Keyboard hint ——————— */
+/* ——————— Keyboard hint — pill, mac-flavored ——————— */
 kbd, .kbd {
-  display: inline-block;
-  padding: 1px 5px;
-  font-family: var(--fc-font-mono);
-  font-size: 10px;
-  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  font-family: var(--fc-font-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   color: var(--fc-fg-muted);
-  background: var(--fc-surface);
-  border: 1px solid var(--fc-border);
-  border-radius: var(--fc-radius-1);
+  background: color-mix(in srgb, var(--fc-fg) 9%, transparent);
+  border: 1px solid transparent;
+  border-radius: 6px;
   white-space: nowrap;
 }
 
 /* ——————— Input ——————— */
 .input {
   width: 100%;
-  padding: var(--fc-sp-3) var(--fc-sp-4);
-  font-family: var(--fc-font-mono);
+  padding: 9px 12px;
+  font-family: var(--fc-font-ui);
   font-size: var(--fc-fs);
   color: var(--vscode-input-foreground, var(--fc-fg));
-  background: var(--vscode-input-background, var(--fc-surface));
-  border: 1px solid var(--vscode-input-border, var(--fc-border));
-  border-radius: var(--fc-radius-1);
-  transition: border-color var(--fc-t-fast);
+  background: color-mix(in srgb, var(--fc-fg) 6%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--fc-radius-2);
+  transition:
+    background var(--fc-t-fast),
+    border-color var(--fc-t-fast),
+    box-shadow var(--fc-t-fast);
 }
-.input:focus {
+.input:hover {
+  background: color-mix(in srgb, var(--fc-fg) 9%, transparent);
+}
+.input:focus,
+.input:focus-visible {
   outline: none;
-  border-color: var(--fc-border-hi);
+  background: var(--fc-surface-hi);
+  border-color: color-mix(in srgb, var(--fc-accent) 50%, transparent);
+  box-shadow: var(--fc-ring);
 }
 .input::placeholder { color: var(--fc-fg-dim); font-style: normal; }
 
 select.input {
   cursor: pointer;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--fc-fg-muted) 50%),
-    linear-gradient(135deg, var(--fc-fg-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 50%,
-    calc(100% - 9px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  padding-right: 26px;
+  padding-right: 30px;
   appearance: none;
   -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg,  transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 52%,
+    calc(100% - 11px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--fc-fg);
 }
 
-/* ——————— Status badge (inline) ——————— */
+/* ——————— Tag ——————— */
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  font-family: var(--fc-font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  gap: 5px;
+  padding: 3px 9px;
+  font-family: var(--fc-font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--fc-fg-muted);
-  background: transparent;
-  border: 1px solid var(--fc-border);
-  border-radius: var(--fc-radius-1);
+  background: color-mix(in srgb, var(--fc-fg) 8%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--fc-radius-pill);
   line-height: 1.4;
 }
-.tag-ok   { color: var(--fc-ok);   border-color: color-mix(in srgb, var(--fc-ok)   35%, transparent); }
-.tag-warn { color: var(--fc-warn); border-color: color-mix(in srgb, var(--fc-warn) 35%, transparent); }
-.tag-err  { color: var(--fc-err);  border-color: color-mix(in srgb, var(--fc-err)  35%, transparent); }
-.tag-pro  { color: var(--fc-accent); border-color: color-mix(in srgb, var(--fc-accent) 35%, transparent); }
-
 .tag .dot {
   display: inline-block;
   width: 6px; height: 6px;
   border-radius: 50%;
   background: currentColor;
+  box-shadow: 0 0 6px currentColor;
 }
+
+.tag-ok   { color: var(--fc-ok);     background: color-mix(in srgb, var(--fc-ok)     14%, transparent); }
+.tag-warn { color: var(--fc-warn);   background: color-mix(in srgb, var(--fc-warn)   14%, transparent); }
+.tag-err  { color: var(--fc-err);    background: color-mix(in srgb, var(--fc-err)    14%, transparent); }
+.tag-pro  {
+  color: var(--fc-accent-fg);
+  background: linear-gradient(135deg, var(--fc-accent), var(--fc-indigo));
+  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--fc-accent) 70%, transparent);
+}
+.tag-pro .dot { background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.8); }
 
 /* ——————— Progress ——————— */
 .progress {
   position: relative;
-  height: 4px;
-  background: var(--fc-surface);
-  border: 1px solid var(--fc-border);
+  height: 6px;
+  background: color-mix(in srgb, var(--fc-fg) 10%, transparent);
   overflow: hidden;
-  border-radius: var(--fc-radius-1);
+  border-radius: var(--fc-radius-pill);
 }
 .progress > .fill {
   position: absolute; inset: 0 auto 0 0;
   width: 0%;
-  background: var(--fc-accent);
+  background: linear-gradient(90deg, var(--fc-accent), var(--fc-indigo));
+  border-radius: var(--fc-radius-pill);
   transition: width var(--fc-t);
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--fc-accent) 60%, transparent);
 }
-.progress > .fill.warn { background: var(--fc-warn); }
-.progress > .fill.err  { background: var(--fc-err); }
+.progress > .fill.warn {
+  background: linear-gradient(90deg, var(--fc-warn), var(--fc-yellow));
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--fc-warn) 60%, transparent);
+}
+.progress > .fill.err {
+  background: linear-gradient(90deg, var(--fc-err), #ff6b8b);
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--fc-err) 60%, transparent);
+}
 
-/* ——————— Action tile — like a command in a menu ——————— */
+/* ——————— Tile (legacy — kept for any callers) ——————— */
 .tile {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--fc-sp-4);
   padding: var(--fc-sp-4) var(--fc-sp-5);
-  background: transparent;
+  background: var(--fc-surface);
   border: 1px solid var(--fc-border);
-  border-radius: var(--fc-radius-1);
+  border-radius: var(--fc-radius-3);
   cursor: pointer;
-  font-family: var(--fc-font-mono);
+  font-family: var(--fc-font-ui);
   color: var(--fc-fg);
   text-align: left;
   width: 100%;
-  transition: background var(--fc-t-fast), border-color var(--fc-t-fast), transform var(--fc-t-fast);
+  transition: background var(--fc-t-fast), transform var(--fc-t-fast), box-shadow var(--fc-t-fast);
 }
-.tile:hover {
-  background: var(--fc-surface);
-  border-color: var(--fc-fg-muted);
-}
-.tile:hover .tile-num { color: var(--fc-accent); }
-.tile:active { transform: translateX(1px); }
+.tile:hover { background: var(--fc-surface-hi); box-shadow: var(--fc-shadow-1); }
+.tile:active { transform: scale(.99); }
 
 .tile-num {
-  width: 20px; height: 20px;
+  width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: var(--fc-fs-sm);
+  font-weight: 600;
   color: var(--fc-fg-muted);
-  border: 1px solid var(--fc-border);
-  border-radius: var(--fc-radius-1);
-  transition: color var(--fc-t-fast);
+  background: color-mix(in srgb, var(--fc-fg) 8%, transparent);
+  border-radius: 7px;
 }
 
 .tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tile-title {
-  font-size: var(--fc-fs);
-  color: var(--fc-fg);
-}
-.tile-title::before {
-  content: "$ ";
-  color: var(--fc-fg-dim);
-}
+.tile-title { font-size: var(--fc-fs); font-weight: 600; color: var(--fc-fg); }
 .tile-desc {
   font-size: var(--fc-fs-sm);
   color: var(--fc-fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ——————— Row (settings list) ——————— */
+/* ——————— Row (legacy — kept) ——————— */
 .row {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--fc-sp-3);
   padding: var(--fc-sp-5) 0;
-  border-bottom: 1px dashed var(--fc-border);
+  border-bottom: 1px solid var(--fc-divider);
 }
 .row:last-child { border-bottom: none; }
-
-.row-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--fc-sp-4);
-}
-.row-key {
-  font-family: var(--fc-font-mono);
-  font-size: var(--fc-fs);
-  color: var(--fc-fg);
-}
+.row-head { display: flex; align-items: center; justify-content: space-between; gap: var(--fc-sp-4); }
+.row-key  { font-size: var(--fc-fs); font-weight: 510; color: var(--fc-fg); }
 .row-key .prefix { color: var(--fc-fg-dim); }
-.row-hint {
-  font-family: var(--fc-font-mono);
-  font-size: var(--fc-fs-sm);
-  color: var(--fc-fg-muted);
-}
-
+.row-hint { font-size: var(--fc-fs-sm); color: var(--fc-fg-muted); }
 .row-control { display: flex; gap: var(--fc-sp-3); align-items: center; }
 .row-control .input { flex: 1; }
-
 .row-foot {
   display: flex; align-items: center; justify-content: space-between;
-  gap: var(--fc-sp-4);
-  font-size: var(--fc-fs-sm);
-  color: var(--fc-fg-muted);
+  gap: var(--fc-sp-4); font-size: var(--fc-fs-sm); color: var(--fc-fg-muted);
   min-height: 16px;
 }

@@ -28,11 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
   wire();
 
   onMessage({
-    updateSettings: ({ settings, providers }) => {
+    updateSettings: ({ settings, providers, account }) => {
       currentSettings = settings;
       currentProviders = providers;
+      if (account) renderAccount(account);
       render();
     },
+    accountUpdated: (account) => renderAccount(account),
     connectionResult: ({ provider, success, message }) => {
       setStatus(provider, success ? 'ok' : 'err', success ? 'Connected' : (message || 'Failed to connect'));
       const btn = getById(`test-${provider}`);
@@ -87,6 +89,10 @@ function wire() {
     postMessage('resetApiKeys');
   });
 
+  // Account: sign-in / sign-out delegate to the extension commands.
+  getById('account-signin')?.addEventListener('click', () => postMessage('signIn'));
+  getById('account-signout')?.addEventListener('click', () => postMessage('signOut'));
+
   // Reveal / hide passwords
   getById('reveal-btn')?.addEventListener('click', () => {
     keysRevealed = !keysRevealed;
@@ -133,6 +139,28 @@ function save() {
   });
 
   postMessage('saveSettings', { settings: newSettings, apiKeys });
+}
+
+function renderAccount(account) {
+  const block  = getById('account-block');
+  const status = getById('account-status');
+  const email  = getById('account-email');
+  const inBtn  = getById('account-signin');
+  const outBtn = getById('account-signout');
+  if (!status) return;
+  const signedIn = !!(account && account.signedIn);
+  if (block) block.classList.toggle('signed-in', signedIn);
+  if (signedIn) {
+    status.textContent = 'Signed in';
+    if (email) email.textContent = account.email || '';
+    if (inBtn) inBtn.hidden = true;
+    if (outBtn) outBtn.hidden = false;
+  } else {
+    status.textContent = 'Signed out';
+    if (email) email.textContent = '';
+    if (inBtn) inBtn.hidden = false;
+    if (outBtn) outBtn.hidden = true;
+  }
 }
 
 function render() {

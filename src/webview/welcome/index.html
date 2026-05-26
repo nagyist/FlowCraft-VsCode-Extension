@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}'; img-src {{cspSource}} https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}'; img-src {{cspSource}} https: data:; font-src {{cspSource}};">
     <title>FlowCraft</title>
 
     <link rel="stylesheet" href="{{themeCss}}">
@@ -25,6 +25,21 @@
                 </div>
             </div>
         </header>
+
+        <section class="wc-card wc-account" aria-label="Account" id="wc-account">
+            <div class="wc-account-row">
+                <div class="wc-account-id">
+                    <span class="wc-eyebrow">Account</span>
+                    <span id="wc-account-status" class="wc-account-status">Signed out</span>
+                    <span id="wc-account-email" class="wc-account-email"></span>
+                </div>
+                <div class="wc-account-actions">
+                    <button class="btn btn-sm" id="wc-signin">Sign in</button>
+                    <button class="btn btn-sm" id="wc-signout" hidden>Sign out</button>
+                </div>
+            </div>
+            <p id="wc-account-hint" class="wc-account-hint">Sign in to use your FlowCraft subscription instead of pasting a provider key.</p>
+        </section>
 
         <section class="wc-card wc-plan" aria-label="Subscription and usage">
             <div class="wc-plan-head">

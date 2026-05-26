@@ -16,8 +16,42 @@ document.addEventListener('DOMContentLoaded', () => {
   wireShortcuts();
   wireLinks();
 
-  onMessage({ updateUsage: renderUsage });
+  wireAccount();
+
+  onMessage({ updateUsage: renderUsage, updateAccount: renderAccount });
 });
+
+function wireAccount() {
+  getById('wc-signin')?.addEventListener('click', () => postMessage('signIn'));
+  getById('wc-signout')?.addEventListener('click', () => postMessage('signOut'));
+}
+
+function renderAccount(account) {
+  const card   = getById('wc-account');
+  const status = getById('wc-account-status');
+  const email  = getById('wc-account-email');
+  const hint   = getById('wc-account-hint');
+  const inBtn  = getById('wc-signin');
+  const outBtn = getById('wc-signout');
+  if (!status || !inBtn || !outBtn) return;
+
+  const signedIn = !!(account && account.signedIn);
+  if (card) card.dataset.signedIn = signedIn ? 'true' : 'false';
+
+  if (signedIn) {
+    status.textContent = 'Signed in';
+    if (email) email.textContent = account.email || '';
+    if (hint) hint.textContent = 'Using your FlowCraft subscription.';
+    inBtn.hidden = true;
+    outBtn.hidden = false;
+  } else {
+    status.textContent = 'Signed out';
+    if (email) email.textContent = '';
+    if (hint) hint.textContent = 'Sign in to use your FlowCraft subscription instead of pasting a provider key.';
+    inBtn.hidden = false;
+    outBtn.hidden = true;
+  }
+}
 
 function wireActions() {
   for (const { id, command } of ACTIONS) {

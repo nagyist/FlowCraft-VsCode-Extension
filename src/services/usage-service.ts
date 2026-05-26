@@ -6,12 +6,14 @@ import { UsageStats } from '../types';
 import { FlowCraftClient } from '../api/flowcraft-client';
 import { StateManager } from '../state/state-manager';
 import { APIKeyService } from './api-key-service';
+import { AuthService } from './auth-service';
 
 export class UsageService {
   constructor(
     private apiClient: FlowCraftClient,
     private stateManager: StateManager,
-    private apiKeyService: APIKeyService
+    private apiKeyService: APIKeyService,
+    private authService?: AuthService
   ) {}
 
   /**
@@ -26,8 +28,17 @@ export class UsageService {
    */
   async syncFromAPI(): Promise<UsageStats> {
     const provider = this.stateManager.getSetting('defaultProvider');
-    const apiKey = await this.apiKeyService.retrieve(provider);
+    const bearer = this.authService
+      ? await this.authService.getValidAccessToken()
+      : null;
 
+    if (bearer) {
+      const usage = await this.apiClient.getUsage(provider, '', bearer);
+      this.stateManager.updateUsage(usage);
+      return usage;
+    }
+
+    const apiKey = await this.apiKeyService.retrieve(provider);
     if (!apiKey) {
       throw new Error(`No API key configured for ${provider}`);
     }

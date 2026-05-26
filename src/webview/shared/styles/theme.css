@@ -1,173 +1,292 @@
 /**
- * FlowCraft — terminal/IDE-native theme.
- * Uses VS Code's own CSS variables so the extension inherits the user's
- * editor theme exactly. No custom palettes; accents are derived from
- * VS Code's semantic tokens.
+ * FlowCraft — Apple-flavored UI theme.
+ *
+ * Builds an "Apple Human Interface" surface on top of VS Code's host theme:
+ *   - SF Pro typography stack with proper feature settings.
+ *   - macOS System-Settings spacing scale (8pt grid).
+ *   - Continuous-corner radii (10/14/18/22).
+ *   - Layered surfaces: a calibrated tint over the host bg so the panel feels
+ *     like a native macOS sidebar even when the editor uses a custom theme.
+ *   - A single FlowCraft accent (systemBlue) — falls back to the host's
+ *     textLink color when the host theme is high-contrast.
+ *
+ * Light/dark is keyed off VS Code's body classes (.vscode-light /
+ * .vscode-dark), which it sets on the webview document.
  */
 
 :root {
-  /* Surfaces — pulled directly from the host theme */
-  --fc-bg:           var(--vscode-sideBar-background, var(--vscode-editor-background));
-  --fc-bg-alt:       var(--vscode-editor-background);
-  --fc-surface:      var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-  --fc-surface-hi:   var(--vscode-input-background);
-  --fc-border:       var(--vscode-panel-border, var(--vscode-editorWidget-border, rgba(128,128,128,0.25)));
-  --fc-border-hi:    var(--vscode-focusBorder);
+  /* —— Typography ————————————————————————————————————— */
+  --fc-font-ui:
+    -apple-system, BlinkMacSystemFont,
+    "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Helvetica, Arial,
+    "Segoe UI", system-ui, sans-serif;
+  --fc-font-mono:
+    ui-monospace, "SF Mono", "JetBrains Mono",
+    var(--vscode-editor-font-family, Menlo), Consolas, monospace;
 
-  /* Text — derived from the current foreground so every theme stays legible */
-  --fc-fg:           var(--vscode-sideBar-foreground, var(--vscode-foreground));
-  --fc-fg-muted:     color-mix(in srgb, var(--fc-fg) 62%, transparent);
-  --fc-fg-dim:       color-mix(in srgb, var(--fc-fg) 42%, transparent);
+  --fc-fs-xs:    11px;
+  --fc-fs-sm:    12px;
+  --fc-fs:       13px;
+  --fc-fs-md:    14px;
+  --fc-fs-lg:    15px;
+  --fc-fs-xl:    17px;
+  --fc-fs-2xl:   22px;
+  --fc-fs-3xl:   28px;
+  --fc-fs-editor: var(--vscode-editor-font-size, 13px);
 
-  /* Accents — semantic tokens straight from the theme */
-  --fc-accent:       var(--vscode-textLink-foreground);
-  --fc-accent-hi:    var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
-  --fc-ok:           var(--vscode-testing-iconPassed, var(--vscode-charts-green, #3fb950));
-  --fc-warn:         var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, #d29922));
-  --fc-err:          var(--vscode-editorError-foreground, var(--vscode-charts-red, #f85149));
-
-  /* Typography — editor font so the panel feels like part of the IDE */
-  --fc-font-mono:    var(--vscode-editor-font-family, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace);
-  --fc-font-ui:      var(--vscode-font-family);
-  --fc-fs-editor:    var(--vscode-editor-font-size, 13px);
-
-  --fc-fs-xs:  10px;
-  --fc-fs-sm:  11px;
-  --fc-fs:     12px;
-  --fc-fs-md:  13px;
-  --fc-fs-lg:  15px;
-
-  /* Space — dense, like a terminal pane */
+  /* —— 8pt spacing scale ————————————————————————————————— */
   --fc-sp-1:   2px;
   --fc-sp-2:   4px;
-  --fc-sp-3:   6px;
-  --fc-sp-4:   8px;
-  --fc-sp-5:   12px;
-  --fc-sp-6:   16px;
-  --fc-sp-7:   24px;
-  --fc-sp-8:   32px;
+  --fc-sp-3:   8px;
+  --fc-sp-4:  12px;
+  --fc-sp-5:  16px;
+  --fc-sp-6:  20px;
+  --fc-sp-7:  24px;
+  --fc-sp-8:  32px;
+  --fc-sp-9:  40px;
 
-  /* Corners — sharp */
-  --fc-radius-0: 0;
-  --fc-radius-1: 2px;
-  --fc-radius-2: 3px;
+  /* —— Continuous corners ——————————————————————————————— */
+  --fc-radius-1:  6px;   /* chips, kbds */
+  --fc-radius-2: 10px;   /* buttons, inputs */
+  --fc-radius-3: 14px;   /* tiles */
+  --fc-radius-4: 18px;   /* cards */
+  --fc-radius-5: 22px;   /* hero */
+  --fc-radius-pill: 999px;
 
-  /* Motion */
-  --fc-t-fast:   90ms ease-out;
-  --fc-t:        140ms ease-out;
+  /* —— Brand accent (systemBlue) ——————————————————————— */
+  --fc-blue:        #007AFF;
+  --fc-indigo:      #5E5CE6;
+  --fc-purple:      #AF52DE;
+  --fc-pink:        #FF375F;
+  --fc-orange:      #FF9F0A;
+  --fc-yellow:      #FFD60A;
+  --fc-green:       #30D158;
+  --fc-mint:        #00C7BE;
+  --fc-teal:        #64D2FF;
+
+  --fc-accent:        var(--fc-blue);
+  --fc-accent-hi:     #0A84FF;
+  --fc-accent-soft:   color-mix(in srgb, var(--fc-accent) 14%, transparent);
+  --fc-accent-softer: color-mix(in srgb, var(--fc-accent)  8%, transparent);
+  --fc-accent-fg:     #ffffff;
+
+  --fc-ok:    var(--fc-green);
+  --fc-warn:  var(--fc-orange);
+  --fc-err:   var(--fc-pink);
+
+  /* —— Motion ——————————————————————————————————————————— */
+  --fc-t-fast:    120ms cubic-bezier(.2,.8,.2,1);
+  --fc-t:         220ms cubic-bezier(.2,.8,.2,1);
+  --fc-t-spring:  260ms cubic-bezier(.34,1.56,.64,1);
 }
 
-/* Reset */
+/* —— Light surfaces (default — also matches .vscode-light) ———— */
+:root,
+body.vscode-light {
+  --fc-bg:           var(--vscode-sideBar-background, #f5f5f7);
+  --fc-bg-alt:       color-mix(in srgb, var(--fc-bg) 96%, #000 4%);
+  --fc-surface:      color-mix(in srgb, var(--fc-bg) 100%, #ffffff 65%);
+  --fc-surface-hi:   #ffffff;
+  --fc-surface-glass: color-mix(in srgb, #ffffff 78%, transparent);
+
+  --fc-border:       color-mix(in srgb, currentColor 12%, transparent);
+  --fc-border-hi:    color-mix(in srgb, var(--fc-accent) 55%, transparent);
+  --fc-divider:      color-mix(in srgb, currentColor 8%, transparent);
+
+  --fc-fg:           var(--vscode-sideBar-foreground, #1d1d1f);
+  --fc-fg-strong:    color-mix(in srgb, var(--fc-fg) 100%, #000 12%);
+  --fc-fg-muted:     color-mix(in srgb, var(--fc-fg) 62%, transparent);
+  --fc-fg-dim:       color-mix(in srgb, var(--fc-fg) 38%, transparent);
+
+  --fc-shadow-1:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(20,20,40,.06),
+    0 6px 18px -8px rgba(20,20,40,.10);
+  --fc-shadow-2:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 4px 14px -6px rgba(20,20,40,.14),
+    0 22px 50px -22px rgba(20,20,40,.20);
+
+  --fc-ring:
+    0 0 0 3px color-mix(in srgb, var(--fc-accent) 28%, transparent);
+}
+
+/* —— Dark surfaces ——————————————————————————————————— */
+body.vscode-dark {
+  --fc-bg:           var(--vscode-sideBar-background, #1c1c1e);
+  --fc-bg-alt:       color-mix(in srgb, var(--fc-bg) 88%, #000 12%);
+  --fc-surface:      color-mix(in srgb, var(--fc-bg) 80%, #ffffff 8%);
+  --fc-surface-hi:   color-mix(in srgb, var(--fc-bg) 60%, #ffffff 14%);
+  --fc-surface-glass: color-mix(in srgb, #2c2c2e 70%, transparent);
+
+  --fc-border:       color-mix(in srgb, #ffffff 10%, transparent);
+  --fc-border-hi:    color-mix(in srgb, var(--fc-accent) 65%, transparent);
+  --fc-divider:      color-mix(in srgb, #ffffff 6%, transparent);
+
+  --fc-fg:           var(--vscode-sideBar-foreground, #f5f5f7);
+  --fc-fg-strong:    #ffffff;
+  --fc-fg-muted:     color-mix(in srgb, var(--fc-fg) 64%, transparent);
+  --fc-fg-dim:       color-mix(in srgb, var(--fc-fg) 38%, transparent);
+
+  --fc-accent:       #0A84FF;
+  --fc-accent-hi:    #409CFF;
+
+  --fc-shadow-1:
+    0 1px 0 rgba(255,255,255,.04) inset,
+    0 4px 14px rgba(0,0,0,.36);
+  --fc-shadow-2:
+    0 1px 0 rgba(255,255,255,.05) inset,
+    0 8px 24px rgba(0,0,0,.45),
+    0 24px 60px -20px rgba(0,0,0,.55);
+
+  --fc-ring:
+    0 0 0 3px color-mix(in srgb, var(--fc-accent) 35%, transparent);
+}
+
+/* —— High contrast: surrender our chrome to VS Code's tokens —— */
+body.vscode-high-contrast {
+  --fc-accent:    var(--vscode-textLink-foreground, #0A84FF);
+  --fc-border:    var(--vscode-contrastBorder, currentColor);
+  --fc-border-hi: var(--vscode-focusBorder);
+  --fc-shadow-1: none;
+  --fc-shadow-2: none;
+}
+
+/* —— Reset ————————————————————————————————————————————— */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+*::before, *::after { box-sizing: border-box; }
 
 html, body {
   background: var(--fc-bg);
   color: var(--fc-fg);
-  font-family: var(--fc-font-mono);
+  font-family: var(--fc-font-ui);
   font-size: var(--fc-fs);
-  line-height: 1.55;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
-  text-rendering: geometricPrecision;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.003em;
 }
 
-body {
-  /* Solid — scanline backgrounds read as banding on light themes */
+/* Layered backdrop — a faint tinted wash so panels feel like macOS,
+   even when the editor's bg is flat. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 600px at 100% -10%,
+      color-mix(in srgb, var(--fc-accent) 10%, transparent),
+      transparent 60%),
+    radial-gradient(900px 500px at -10% 110%,
+      color-mix(in srgb, var(--fc-indigo) 8%, transparent),
+      transparent 55%);
+  z-index: 0;
 }
+body > * { position: relative; z-index: 1; }
 
-/* Typography */
+/* —— Typography ———————————————————————————————————————— */
 h1, h2, h3, h4 {
-  font-family: var(--fc-font-mono);
+  font-family: var(--fc-font-ui);
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--fc-fg);
+  color: var(--fc-fg-strong, var(--fc-fg));
+  letter-spacing: -0.022em;
+  line-height: 1.18;
 }
+h1 { font-size: var(--fc-fs-2xl); }
+h2 { font-size: var(--fc-fs-xl);  }
+h3 { font-size: var(--fc-fs-lg);  }
+h4 { font-size: var(--fc-fs-md);  }
 
-h1 { font-size: var(--fc-fs-lg); text-transform: lowercase; }
-h2 { font-size: var(--fc-fs-md); }
-h3 { font-size: var(--fc-fs);    }
-
-p  { margin: 0; color: var(--fc-fg); }
+p { margin: 0; color: var(--fc-fg); }
 
 a {
   color: var(--fc-accent);
   text-decoration: none;
-  border-bottom: 1px dashed transparent;
-  transition: border-color var(--fc-t-fast);
+  transition: color var(--fc-t-fast);
 }
 a:hover, a:focus-visible {
-  border-bottom-color: var(--fc-accent);
+  color: var(--fc-accent-hi);
   outline: none;
 }
 
-code, kbd, pre {
+code, pre, samp {
   font-family: var(--fc-font-mono);
-  font-size: var(--fc-fs-sm);
+  font-size: 0.92em;
+}
+kbd {
+  font-family: var(--fc-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-/* Scrollbar — thin, flat */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* —— Scrollbar ————————————————————————————————————————— */
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--fc-border);
-  border-radius: 0;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--fc-fg-muted); }
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  background-clip: padding-box;
+}
 
-/* Selection */
+/* —— Selection / focus ————————————————————————————————— */
 ::selection {
-  background: var(--vscode-editor-selectionBackground, var(--fc-accent));
-  color: var(--vscode-editor-selectionForeground, var(--fc-fg));
+  background: color-mix(in srgb, var(--fc-accent) 28%, transparent);
+  color: inherit;
 }
 
-/* Focus */
 :focus-visible {
-  outline: 1px solid var(--fc-border-hi);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--fc-ring);
+  border-radius: inherit;
 }
 
-/* Disabled */
-:disabled, [disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+:disabled, [disabled] { opacity: 0.42; cursor: not-allowed; }
 
-/* ——————— Utility ——————— */
+/* —— Utilities ————————————————————————————————————————— */
 .hidden { display: none !important; }
 
-.mono { font-family: var(--fc-font-mono); }
+.mono  { font-family: var(--fc-font-mono); letter-spacing: 0; }
 .muted { color: var(--fc-fg-muted); }
 .dim   { color: var(--fc-fg-dim); }
 .ok    { color: var(--fc-ok); }
 .warn  { color: var(--fc-warn); }
 .err   { color: var(--fc-err); }
 
-.flex         { display: flex; }
-.col          { flex-direction: column; }
-.items-center { align-items: center; }
-.between      { justify-content: space-between; }
-.gap-1        { gap: var(--fc-sp-2); }
-.gap-2        { gap: var(--fc-sp-4); }
-.gap-3        { gap: var(--fc-sp-5); }
+.flex          { display: flex; }
+.col           { flex-direction: column; }
+.items-center  { align-items: center; }
+.between       { justify-content: space-between; }
+.gap-1         { gap: var(--fc-sp-2); }
+.gap-2         { gap: var(--fc-sp-3); }
+.gap-3         { gap: var(--fc-sp-4); }
 
-/* Hairline rule, like a TUI box edge */
 .rule {
   height: 1px;
-  background: var(--fc-border);
+  background: var(--fc-divider);
   margin: var(--fc-sp-5) 0;
 }
 
-/* Section marker: `// foo` style heading */
 .section-marker {
   display: block;
-  font-size: var(--fc-fs-sm);
+  font-size: var(--fc-fs-xs);
   color: var(--fc-fg-muted);
-  text-transform: lowercase;
-  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
   padding: var(--fc-sp-2) 0;
-  border-bottom: 1px dashed var(--fc-border);
-  margin-bottom: var(--fc-sp-4);
+  margin-bottom: var(--fc-sp-3);
 }
-.section-marker::before {
-  content: "// ";
-  color: var(--fc-fg-dim);
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }

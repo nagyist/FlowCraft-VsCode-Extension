@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}'; img-src {{cspSource}} https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}'; img-src {{cspSource}} https: data:; font-src {{cspSource}};">
     <title>FlowCraft · Settings</title>
 
     <link rel="stylesheet" href="{{themeCss}}">
@@ -28,6 +28,28 @@
                 </button>
             </div>
         </header>
+
+        <!-- ————— Account ————— -->
+        <section class="st-section" aria-labelledby="account-heading">
+            <div class="st-section-head">
+                <h2 id="account-heading" class="st-section-title">Account</h2>
+                <p class="st-section-desc">Sign in to use your FlowCraft subscription instead of pasting a provider key.</p>
+            </div>
+            <div class="st-card">
+                <div class="st-provider" id="account-block">
+                    <div class="st-provider-head">
+                        <div class="st-provider-id">
+                            <span class="st-provider-name" id="account-status">Signed out</span>
+                            <span id="account-email" class="st-provider-hint"></span>
+                        </div>
+                    </div>
+                    <div class="st-provider-control" id="account-actions">
+                        <button class="btn btn-sm" id="account-signin">Sign in</button>
+                        <button class="btn btn-sm" id="account-signout" hidden>Sign out</button>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- ————— API Providers ————— -->
         <section class="st-section" aria-labelledby="providers-heading">

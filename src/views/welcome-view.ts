@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { StateManager } from '../state/state-manager';
 import { UsageService } from '../services/usage-service';
+import { AuthService } from '../services/auth-service';
 import { setupMessageListener, getNonce, getWebviewUri } from '../utils/webview-utils';
 
 export class WelcomeViewProvider implements vscode.WebviewViewProvider {
@@ -10,7 +11,8 @@ export class WelcomeViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly stateManager: StateManager,
-    private readonly usageService: UsageService
+    private readonly usageService: UsageService,
+    private readonly authService: AuthService
   ) {}
 
   async resolveWebviewView(
@@ -42,13 +44,32 @@ export class WelcomeViewProvider implements vscode.WebviewViewProvider {
       openSettings: async () => { await vscode.commands.executeCommand('flowcraft.openSettings'); },
       resetApiKeys: async () => { await vscode.commands.executeCommand('flowcraft.resetApiKey'); },
       syncUsage: async () => { await vscode.commands.executeCommand('flowcraft.syncUsage'); },
-      checkUsage: async () => this.sendUsageData()
+      checkUsage: async () => this.sendUsageData(),
+      signIn:  async () => { await vscode.commands.executeCommand('flowcraft.signIn'); },
+      signOut: async () => { await vscode.commands.executeCommand('flowcraft.signOut'); }
     });
 
     // Update on state changes
     this.stateManager.onStateChange(() => {
       this.sendUsageData();
     });
+
+    // Push initial account state and refresh on session changes.
+    this.sendAccountData();
+    this.refreshUsageFromAPI();
+    this.authService.onDidChangeSession(() => {
+      this.sendAccountData();
+      this.refreshUsageFromAPI();
+    });
+  }
+
+  private async refreshUsageFromAPI(): Promise<void> {
+    try {
+      await this.usageService.syncFromAPI();
+    } catch {
+      // Best-effort: leave whatever local usage state was already there.
+    }
+    this.sendUsageData();
   }
 
   private sendUsageData(): void {
@@ -59,6 +80,17 @@ export class WelcomeViewProvider implements vscode.WebviewViewProvider {
         data: usage
       });
     }
+  }
+
+  private async sendAccountData(): Promise<void> {
+    if (!this._view) return;
+    const session = await this.authService.getSession();
+    this._view.webview.postMessage({
+      command: 'updateAccount',
+      data: session
+        ? { signedIn: true, email: session.email }
+        : { signedIn: false }
+    });
   }
 
   private async getHtmlContent(webview: vscode.Webview): Promise<string> {

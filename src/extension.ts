@@ -2,9 +2,13 @@ import * as vscode from "vscode";
 import FlowCraftChatParticipant from "./ChatParticipantHandler";
 import { StateManager } from "./state/state-manager";
 import { APIKeyService } from "./services/api-key-service";
+import { AuthService } from "./services/auth-service";
 import { UsageService } from "./services/usage-service";
 import { DiagramService } from "./services/diagram-service";
 import { FlowCraftClient } from "./api/flowcraft-client";
+import { AuthResolver, NoCredentialsError, ResolvedAuth } from "./api/auth-resolver";
+import { resolveAuthConfig } from "./auth/auth-config";
+import { registerAuthUriHandler, signIn, signOut } from "./auth/auth-flow";
 import { WelcomeViewProvider } from "./views/welcome-view";
 import { SettingsViewProvider } from "./views/settings-view";
 import { initLogger } from "./utils/logger";
@@ -186,6 +190,36 @@ async function ensureProviderApiKey(
   return apiKey;
 }
 
+/**
+ * Resolve outgoing auth: prefer signed-in Bearer token, fall back to BYOK.
+ * Returns null if neither is available (and surfaces an error toast).
+ */
+async function resolveAuth(
+  authResolver: AuthResolver,
+  stateManager: StateManager
+): Promise<ResolvedAuth | null> {
+  try {
+    return await authResolver.resolve();
+  } catch (err) {
+    if (err instanceof NoCredentialsError) {
+      showApiKeyError(stateManager.getSetting("defaultProvider"));
+    } else {
+      vscode.window.showErrorMessage(
+        `FlowCraft auth error · ${(err as Error).message ?? String(err)}`
+      );
+    }
+    return null;
+  }
+}
+
+/** Build the headers object for v2/diagrams/generate, using resolved auth. */
+function buildGenerateHeaders(auth: ResolvedAuth): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    [auth.headerName]: auth.headerValue,
+  };
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -205,7 +239,28 @@ export async function activate(context: vscode.ExtensionContext) {
     baseURL: process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL,
   });
 
-  const usageService = new UsageService(apiClient, stateManager, apiKeyService);
+  // Auth: signed-in Supabase session + URI handler for OAuth callback.
+  const authConfig = resolveAuthConfig();
+  const authService = new AuthService(context, {
+    supabaseUrl: authConfig.supabaseUrl,
+    supabaseAnonKey: authConfig.supabaseAnonKey,
+  });
+  registerAuthUriHandler(context, authService);
+
+  const authResolver = new AuthResolver({
+    authService,
+    apiKeyService,
+    ensureProviderKey: async (provider) => {
+      let key = await apiKeyService.retrieve(provider);
+      if (!key) {
+        key = await promptForProviderApiKey(apiKeyService, provider);
+      }
+      return key;
+    },
+    getDefaultProvider: () => stateManager.getSetting("defaultProvider"),
+  });
+
+  const usageService = new UsageService(apiClient, stateManager, apiKeyService, authService);
   const diagramService = new DiagramService(
     apiClient,
     stateManager,
@@ -216,7 +271,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const welcomeProvider = new WelcomeViewProvider(
     context.extensionUri,
     stateManager,
-    usageService
+    usageService,
+    authService
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
@@ -228,7 +284,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const settingsProvider = new SettingsViewProvider(
     context.extensionUri,
     stateManager,
-    apiKeyService
+    apiKeyService,
+    authService
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
@@ -277,6 +334,23 @@ export async function activate(context: vscode.ExtensionContext) {
     "flowcraft.openWelcome",
     async () => {
       await vscode.commands.executeCommand("flowcraft.welcomeView.focus");
+    }
+  );
+
+  let signInCommand = vscode.commands.registerCommand(
+    "flowcraft.signIn",
+    async () => {
+      await signIn({
+        webBaseUrl: authConfig.webBaseUrl,
+        extensionId: context.extension.id,
+      });
+    }
+  );
+
+  let signOutCommand = vscode.commands.registerCommand(
+    "flowcraft.signOut",
+    async () => {
+      await signOut(authService);
     }
   );
 
@@ -570,12 +644,9 @@ export async function activate(context: vscode.ExtensionContext) {
             progress.report({ message: "checking credentials…", increment: 10 });
 
             try {
-              // Get API key based on default provider
-              const apiKey = await ensureProviderApiKey(stateManager, apiKeyService);
-              if (!apiKey) {
-                showApiKeyError(stateManager.getSetting("defaultProvider"));
-                return;
-              }
+              // Resolve auth: prefer signed-in Bearer, fall back to BYOK.
+              const auth = await resolveAuth(authResolver, stateManager);
+              if (!auth) return;
 
               progress.report({ message: "sending prompt to model…", increment: 40 });
 
@@ -607,10 +678,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 `${flowCraftApiUrl}/v2/diagrams/generate`,
                 {
                   method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "X-api-key": apiKey,
-                  },
+                  headers: buildGenerateHeaders(auth),
                   body: JSON.stringify(body),
                 }
               );
@@ -777,20 +845,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
             progress.report({ increment: 40 });
 
-            const apiKey = await ensureProviderApiKey(stateManager, apiKeyService);
-            if (!apiKey) {
-              showApiKeyError(stateManager.getSetting("defaultProvider"));
-              return;
-            }
+            const auth = await resolveAuth(authResolver, stateManager);
+            if (!auth) return;
 
             console.log("Request Body: ", body);
 
-            fetch(`${flowCraftApiUrl}/diagrams/generate`, {
+            fetch(`${flowCraftApiUrl}/v2/diagrams/generate`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-api-key": apiKey,
-              },
+              headers: buildGenerateHeaders(auth),
               body: JSON.stringify(body),
             })
               .then((response) => response.json())
@@ -902,18 +964,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
             progress.report({ increment: 40 });
 
-            const apiKey = await ensureProviderApiKey(stateManager, apiKeyService);
-            if (!apiKey) {
-              showApiKeyError(stateManager.getSetting("defaultProvider"));
-              return;
-            }
+            const auth = await resolveAuth(authResolver, stateManager);
+            if (!auth) return;
 
-            fetch(`${flowCraftApiUrl}/diagrams/generate`, {
+            fetch(`${flowCraftApiUrl}/v2/diagrams/generate`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-api-key": apiKey,
-              },
+              headers: buildGenerateHeaders(auth),
               body: JSON.stringify(body),
             })
               .then((response) => response.json())
@@ -1009,18 +1065,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
             progress.report({ increment: 40 });
 
-            const apiKey = await ensureProviderApiKey(stateManager, apiKeyService);
-            if (!apiKey) {
-              showApiKeyError(stateManager.getSetting("defaultProvider"));
-              return;
-            }
+            const auth = await resolveAuth(authResolver, stateManager);
+            if (!auth) return;
 
-            fetch(`${flowCraftApiUrl}/diagrams/generate`, {
+            fetch(`${flowCraftApiUrl}/v2/diagrams/generate`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-api-key": apiKey,
-              },
+              headers: buildGenerateHeaders(auth),
               body: JSON.stringify(body),
             })
               .then((response) => response.json())
@@ -1117,18 +1167,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
             progress.report({ increment: 40 });
 
-            const apiKey = await ensureProviderApiKey(stateManager, apiKeyService);
-            if (!apiKey) {
-              showApiKeyError(stateManager.getSetting("defaultProvider"));
-              return;
-            }
+            const auth = await resolveAuth(authResolver, stateManager);
+            if (!auth) return;
 
-            fetch(`${flowCraftApiUrl}/diagrams/generate`, {
+            fetch(`${flowCraftApiUrl}/v2/diagrams/generate`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-api-key": apiKey,
-              },
+              headers: buildGenerateHeaders(auth),
               body: JSON.stringify(body),
             })
               .then((response) => response.json())
@@ -1208,6 +1252,8 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(showHistoryCommand);
   context.subscriptions.push(generateFromSelectionCommand);
   context.subscriptions.push(generateFromFileCommand);
+  context.subscriptions.push(signInCommand);
+  context.subscriptions.push(signOutCommand);
   context.subscriptions.push(chatHandler);
 }
 

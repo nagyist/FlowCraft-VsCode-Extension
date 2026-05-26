@@ -48,8 +48,9 @@ The extension is BYOK. The default provider comes from the setting `flowcraft.ap
 
 ### API endpoints used
 
-- `POST {FLOWCRAFT_API_URL}/diagrams/generate` — v1, used by the legacy flow/class diagram commands.
-- `POST {FLOWCRAFT_API_URL}/v2/diagrams/generate` — v2, used by `flowcraft.openGenerationView`. Returns `response.mermaid_code` and `response.inserted_diagram.data[0].id`; the extension opens `https://flowcraft.app/vscode/<id>` in the user's browser rather than rendering inline.
+- `POST {FLOWCRAFT_API_URL}/v2/diagrams/generate` — used by every generation command (the generation view, context-menu "Use Current File" / "Use Selection", and the legacy flow/class diagram flows). Accepts `{title, description, type, source?, model?}`. Returns `response.mermaid_code` and `response.inserted_diagram.data[0].id`; the extension opens `https://flowcraft.app/vscode/<id>` in the user's browser rather than rendering inline.
+
+The deployed FlowCraft API no longer exposes the unprefixed v1 `/diagrams/generate` route — only `/v2/...` is mounted (see `flowcraft-api/src/main.py`). New code paths must call the v2 URL.
 
 Authentication header is `X-api-key: <user's provider key>` — the FlowCraft API accepts third-party provider keys directly and fans out to the right LLM via LiteLLM.
 

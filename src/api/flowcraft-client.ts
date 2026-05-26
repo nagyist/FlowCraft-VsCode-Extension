@@ -251,14 +251,23 @@ export class FlowCraftClient {
   /**
    * Get user usage statistics
    */
-  async getUsage(provider: Provider, apiKey: string): Promise<UsageStats> {
+  async getUsage(
+    provider: Provider,
+    apiKey: string,
+    bearerToken?: string
+  ): Promise<UsageStats> {
     const response = await this.makeRequest<UsageResponse>(
       API_ENDPOINTS.usage,
-      {
-        method: 'GET',
-        provider,
-        apiKey
-      }
+      bearerToken
+        ? {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${bearerToken}` }
+          }
+        : {
+            method: 'GET',
+            provider,
+            apiKey
+          }
     );
 
     return {
@@ -328,6 +337,7 @@ export class FlowCraftClient {
       try {
         const headers: any = {
           'Content-Type': 'application/json',
+          'X-FlowCraft-Client': 'vscode',
           ...options.headers
         };
 

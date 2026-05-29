@@ -4,6 +4,15 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.3.0] - 2026-05-29
+
+### Added
+- Anonymous, opt-out usage telemetry so we can understand which diagram types and providers are used and improve reliability. It never includes your API keys, prompts, or generated content, and honors VS Code's global telemetry setting. Toggle it under **Settings → Privacy → Share anonymous usage data**.
+
+### Changed
+- Infographics and AI Images are now generally available (previously marked "Coming Soon").
+- The extension is now fully bring-your-own-key: FlowCraft-issued keys are no longer accepted for generation. Add your own OpenAI, Anthropic, or Google key in Settings.
+
 ## [2.2.1] - 2026-05-09
 
 ### Fixed

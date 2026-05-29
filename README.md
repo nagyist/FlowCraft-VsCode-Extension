@@ -19,8 +19,8 @@ Select your per-provider model from the Settings sidebar (`models · per provide
 ### Comprehensive Visualization Types
 Generate widespread diagram standards and creative assets:
 *   **Mermaid Diagrams**: Flowcharts, Sequence, Class, State, ER, Gantt, Pie Charts.
-*   **Infographics**: Create SVG-based infographics for presentations and docs. (Coming Soon)
-*   **AI Images**: Generate illustrative images and diagrams from text descriptions. (Coming Soon)
+*   **Infographics**: Create SVG-based infographics for presentations and docs.
+*   **AI Images**: Generate illustrative images and diagrams from text descriptions.
 
 ### Privacy-First Architecture
 *   **Bring Your Own Key (BYOK)**: Your API keys are stored securely in VS Code's Secret Storage.

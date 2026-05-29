@@ -129,6 +129,7 @@ function save() {
     defaultDiagramType:  getById('default-type').value,
     defaultColorPalette: getById('default-palette').value,
     defaultComplexity:   getById('default-complexity').value,
+    telemetryEnabled:    getById('telemetry-enabled') ? getById('telemetry-enabled').checked : true,
     providerModels
   };
 
@@ -175,6 +176,9 @@ function render() {
   setSelect('default-type',       currentSettings.defaultDiagramType);
   setSelect('default-palette',    currentSettings.defaultColorPalette);
   setSelect('default-complexity', currentSettings.defaultComplexity);
+
+  const telEl = getById('telemetry-enabled');
+  if (telEl) telEl.checked = currentSettings.telemetryEnabled !== false;
 
   renderModelSelects();
 }

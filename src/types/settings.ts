@@ -48,6 +48,11 @@ export interface Settings {
   showUsageWarnings: boolean;
   enableAnimations: boolean;
 
+  // Privacy — share anonymous usage data (diagram types, provider, success/error).
+  // Never includes API keys or prompt text. Also honors VS Code's global
+  // telemetry setting (vscode.env.isTelemetryEnabled).
+  telemetryEnabled: boolean;
+
   // Advanced
   apiBaseUrl: string;
   maxConcurrentRequests: number;
@@ -76,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showWelcomeOnStartup: true,
   showUsageWarnings: true,
   enableAnimations: true,
+  telemetryEnabled: true,
   apiBaseUrl: 'https://flowcraft-api-cb66lpneaq-ue.a.run.app',
   maxConcurrentRequests: 3,
   requestTimeout: 60000

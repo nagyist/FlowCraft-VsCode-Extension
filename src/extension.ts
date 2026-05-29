@@ -12,10 +12,15 @@ import { registerAuthUriHandler, signIn, signOut } from "./auth/auth-flow";
 import { WelcomeViewProvider } from "./views/welcome-view";
 import { SettingsViewProvider } from "./views/settings-view";
 import { initLogger } from "./utils/logger";
+import { TelemetryService } from "./services/telemetry-service";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
 
 const FLOWCRAFT_API_URL = "https://flowcraft-api-cb66lpneaq-ue.a.run.app";
 const OPENAI_KEY_SECRET = "flowcraft.openai.key";
+
+// Set during activate(); lets module-level helpers (e.g. the legacy fetch flows)
+// emit telemetry without threading the service through every call.
+let telemetryRef: TelemetryService | undefined;
 
 const GENERATE_FLOW_DIAGRAM = "flowcraft.generateFlowDiagram";
 const GENERATE_SELECTION_FLOW_DIAGRAM =
@@ -79,6 +84,10 @@ function persistRawFetchDiagram(
       tokensUsed: 0,
     };
     stateManager.addDiagram(diagram);
+    telemetryRef?.track("generation_succeeded", {
+      diagram_type: params.type,
+      provider: stateManager.getSetting("defaultProvider"),
+    });
   } catch (err) {
     console.error("Failed to persist diagram to history:", err);
   }
@@ -135,6 +144,13 @@ function showApiKeyError(provider: string): void {
 /** Collapse verbose upstream errors (litellm / openai / anthropic) into a short toast. */
 function humanizeError(raw: string): { title: string; detail?: string; action?: "billing" | "settings" } {
   const msg = (raw || "").toLowerCase();
+  if (msg.includes("flowcraft-issued keys are no longer accepted")) {
+    return {
+      title: "Bring your own API key",
+      detail: "FlowCraft no longer offers free generations. Open settings to add your OpenAI, Anthropic, or Google API key.",
+      action: "settings",
+    };
+  }
   if (msg.includes("ratelimiterror") || msg.includes("rate limit") || msg.includes("exceeded your current quota") || msg.includes("insufficient_quota")) {
     return {
       title: "Provider quota exceeded",
@@ -158,6 +174,19 @@ function humanizeError(raw: string): { title: string; detail?: string; action?: 
   // Fallback: strip wrappers like "Failed to generate diagram: litellm.XxxError:"
   const cleaned = raw.replace(/^(failed to generate diagram:\s*)?(litellm\.[A-Za-z]+Error:\s*)?/i, "").trim();
   return { title: "Generation failed", detail: cleaned.slice(0, 180) };
+}
+
+/** Bucket a raw error message into a coarse, non-identifying kind for telemetry. */
+function classifyErrorKind(raw: string): string {
+  const msg = (raw || "").toLowerCase();
+  if (msg.includes("flowcraft-issued keys are no longer accepted")) return "byok_required";
+  if (msg.includes("ratelimiterror") || msg.includes("rate limit") || msg.includes("quota")) return "quota";
+  if (msg.includes("authenticationerror") || msg.includes("invalid api key") || msg.includes("incorrect api key") || msg.includes("401")) return "auth";
+  if (msg.includes("403") || msg.includes("permission")) return "permission";
+  if (msg.includes("timeout") || msg.includes("econnreset") || msg.includes("network")) return "network";
+  if (msg.includes("no api key") || msg.includes("nocredentials")) return "no_key";
+  if (msg.includes("400") || msg.includes("validation") || msg.includes("unsupported")) return "validation";
+  return "unknown";
 }
 
 /** Open the rendered diagram in the browser with a toast fallback. */
@@ -235,9 +264,21 @@ export async function activate(context: vscode.ExtensionContext) {
   const apiKeyService = new APIKeyService(context);
   await apiKeyService.migrateOldKeys(); // Migrate legacy keys
 
+  const apiBaseUrl = process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
   const apiClient = new FlowCraftClient({
-    baseURL: process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL,
+    baseURL: apiBaseUrl,
   });
+
+  // Anonymous, opt-out telemetry. Honors the `telemetryEnabled` setting and
+  // VS Code's global telemetry switch. Never sends keys or prompt text.
+  const telemetry = new TelemetryService(
+    context,
+    () => apiBaseUrl,
+    () => stateManager.getSetting("telemetryEnabled") !== false
+  );
+  context.subscriptions.push({ dispose: () => telemetry.dispose() });
+  telemetryRef = telemetry;
+  telemetry.track("extension_activated");
 
   // Auth: signed-in Supabase session + URI handler for OAuth callback.
   const authConfig = resolveAuthConfig();
@@ -456,14 +497,29 @@ export async function activate(context: vscode.ExtensionContext) {
 
           if (result?.id) {
             progress.report({ message: "done", increment: 10 });
+            telemetry.track("generation_succeeded", {
+              diagram_type: kind,
+              provider: stateManager.getSetting("defaultProvider"),
+            });
             openDiagramResult(result.id);
           } else {
+            telemetry.track("generation_failed", {
+              diagram_type: kind,
+              provider: stateManager.getSetting("defaultProvider"),
+              error_kind: "empty_result",
+            });
             vscode.window.showErrorMessage(
               `FlowCraft didn't return a ${kind}. Try again or tweak your prompt.`
             );
           }
         } catch (error: any) {
-          const friendly = humanizeError(error?.message ?? String(error));
+          const rawMessage = error?.message ?? String(error);
+          telemetry.track("generation_failed", {
+            diagram_type: kind,
+            provider: stateManager.getSetting("defaultProvider"),
+            error_kind: classifyErrorKind(rawMessage),
+          });
+          const friendly = humanizeError(rawMessage);
           vscode.window
             .showErrorMessage(
               friendly.detail ? `${friendly.title} · ${friendly.detail}` : friendly.title,
@@ -703,14 +759,29 @@ export async function activate(context: vscode.ExtensionContext) {
                 inserted_diagram.data.length > 0
               ) {
                 progress.report({ message: "done", increment: 10 });
+                telemetry.track("generation_succeeded", {
+                  diagram_type: selectedType,
+                  provider: stateManager.getSetting("defaultProvider"),
+                });
                 openDiagramResult(inserted_diagram.data[0].id);
               } else {
+                telemetry.track("generation_failed", {
+                  diagram_type: selectedType,
+                  provider: stateManager.getSetting("defaultProvider"),
+                  error_kind: "empty_result",
+                });
                 vscode.window.showErrorMessage(
                   "FlowCraft didn't return a diagram. Try again or tweak your prompt."
                 );
               }
             } catch (error: any) {
-              const friendly = humanizeError(error?.message ?? String(error));
+              const rawMessage = error?.message ?? String(error);
+              telemetry.track("generation_failed", {
+                diagram_type: selectedType,
+                provider: stateManager.getSetting("defaultProvider"),
+                error_kind: classifyErrorKind(rawMessage),
+              });
+              const friendly = humanizeError(rawMessage);
               const actions = friendly.action === "billing"
                 ? ["Open Billing", "Switch Provider", "Retry"]
                 : friendly.action === "settings"
@@ -906,6 +977,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 resolve();
               })
               .catch((error) => {
+                telemetryRef?.track("generation_failed", {
+                  error_kind: classifyErrorKind(error?.message ?? String(error)),
+                });
                 vscode.window.showErrorMessage(
                   "An error occurred while generating the diagram. Please try again later."
                 );
@@ -1018,6 +1092,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 resolve();
               })
               .catch((error) => {
+                telemetryRef?.track("generation_failed", {
+                  error_kind: classifyErrorKind(error?.message ?? String(error)),
+                });
                 vscode.window.showErrorMessage(
                   "An error occurred while generating the diagram. Please try again later."
                 );
@@ -1120,6 +1197,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 resolve();
               })
               .catch((error) => {
+                telemetryRef?.track("generation_failed", {
+                  error_kind: classifyErrorKind(error?.message ?? String(error)),
+                });
                 vscode.window.showErrorMessage(
                   "An error occurred while generating the diagram. Please try again later."
                 );

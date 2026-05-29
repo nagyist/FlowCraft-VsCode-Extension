@@ -2,6 +2,12 @@
 .vscode-test/**
 src/**
 scripts/**
+CLAUDE.md
+.claude/**
+docs/**
+local_mds/**
+MAINTENANCE.md
+*.vsix
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md

@@ -4,6 +4,15 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.3.1] - 2026-05-29
+
+### Fixed
+- Chat participant (`@flowcraft` slash commands like `/flowchart`, `/sequence`) no longer ends every generation with a spurious "Something went wrong" error. It was posting the diagram to a placeholder URL after already rendering it; that dead call has been removed.
+
+### Changed
+- Slimmed the published package: internal files (`CLAUDE.md`, `.claude/`, `docs/`, `local_mds/`, `MAINTENANCE.md`) are no longer shipped in the `.vsix`.
+- Chat-participant diagram generations are now included in anonymous telemetry counts (still no keys/prompts).
+
 ## [2.3.0] - 2026-05-29
 
 ### Added

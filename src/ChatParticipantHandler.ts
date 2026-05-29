@@ -4,8 +4,11 @@ import {
   promptPrefix,
   responseFormatPrompt,
 } from "./constants";
+import { TelemetryService } from "./services/telemetry-service";
 
 class FlowCraftChatParticipant {
+  constructor(private readonly telemetry?: TelemetryService) {}
+
   async handleRequest(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
@@ -72,35 +75,25 @@ class FlowCraftChatParticipant {
       // Get explanation from language model
       const chatResponse = await request.model.sendRequest(messages, {}, token);
 
-      // Stream the explanation
-      let mermaidCode = "";
-
+      // Stream the model's response (a fenced ```mermaid block) into the chat.
       for await (const fragment of chatResponse.text) {
-        console.log("Fragment: ", fragment);
         stream.markdown(fragment);
-        mermaidCode += fragment;
       }
 
-      // Send the mermaid code to your API to generate the diagram image
-      const response = await fetch("YOUR_API_URL_HERE", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code: mermaidCode }),
+      // The model's response (streamed above) already contains the rendered
+      // Mermaid diagram in a fenced ```mermaid block, so there's nothing more
+      // to fetch — VS Code renders it inline in the chat.
+      this.telemetry?.track("generation_succeeded", {
+        diagram_type: request.command,
+        provider: "vscode-lm",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate diagram image");
-      }
-
-      const data = await response.json() as { imageUrl: string };
-      const diagramImageUrl = data.imageUrl;
-
-      // Send the diagram image to the chat
-      stream.markdown(`![Diagram](${diagramImageUrl})`);
     } catch (error) {
       const errorMessage = (error as Error).message;
+      this.telemetry?.track("generation_failed", {
+        diagram_type: request.command,
+        provider: "vscode-lm",
+        error_kind: "chat",
+      });
       stream.markdown(
         `❌ Oops! Something went wrong while generating the diagram. Please try again. Error details: ${errorMessage}`
       );

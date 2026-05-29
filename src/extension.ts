@@ -335,7 +335,7 @@ export async function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  const chatParticipant = new FlowCraftChatParticipant();
+  const chatParticipant = new FlowCraftChatParticipant(telemetry);
 
   let resetKeyCommand = vscode.commands.registerCommand(
     "flowcraft.resetApiKey",
@@ -1317,7 +1317,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const chatHandler = vscode.chat.createChatParticipant(
     "flowcraft.diagramAssistant",
-    chatParticipant.handleRequest
+    (req, ctx, stream, tok) => chatParticipant.handleRequest(req, ctx, stream, tok)
   );
 
   context.subscriptions.push(generateFlowDiagramDisposable);

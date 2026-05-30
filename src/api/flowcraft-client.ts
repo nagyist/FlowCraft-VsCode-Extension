@@ -32,6 +32,9 @@ import {
   SyncDiagramResponse,
   CloudDiagram,
   MyDiagramsResponse,
+  TemplatePreview,
+  TemplatesResponse,
+  UseTemplateResponse,
   PublicDiagramsResponse,
   APIErrorResponse
 } from './types';
@@ -354,6 +357,46 @@ export class FlowCraftClient {
       `${API_ENDPOINTS.myDiagrams}/${remoteId}`,
       {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${bearerToken}` }
+      }
+    );
+  }
+
+  /**
+   * List public Mermaid template previews (no auth — previews are free; the
+   * full template code is gated behind useTemplate).
+   */
+  async getTemplates(
+    diagramType?: string,
+    category?: string
+  ): Promise<TemplatePreview[]> {
+    const params = new URLSearchParams();
+    if (diagramType) {
+      params.set('diagram_type', diagramType);
+    }
+    if (category) {
+      params.set('category', category);
+    }
+    const qs = params.toString();
+    const url = qs ? `${API_ENDPOINTS.templates}?${qs}` : API_ENDPOINTS.templates;
+    const response = await this.makeRequest<TemplatesResponse>(url, {
+      method: 'GET'
+    });
+    return response.templates || [];
+  }
+
+  /**
+   * Get a template's full Mermaid code (premium). Requires a FlowCraft session
+   * Bearer token; throws QuotaExceededError (402) when not subscribed.
+   */
+  async useTemplate(
+    bearerToken: string,
+    templateId: string
+  ): Promise<UseTemplateResponse> {
+    return this.makeRequest<UseTemplateResponse>(
+      `${API_ENDPOINTS.templates}/${templateId}/use`,
+      {
+        method: 'POST',
         headers: { Authorization: `Bearer ${bearerToken}` }
       }
     );

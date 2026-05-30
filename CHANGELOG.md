@@ -4,6 +4,11 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.6.0] - 2026-05-30
+
+### Added
+- **Premium Templates.** Run **FlowCraft: Insert Premium Template** to browse a curated library of Mermaid diagram templates and drop one into your workspace as a ready-to-edit diagram. Browsing is free; inserting a template requires FlowCraft Premium. Inserted templates open in an editor and (for subscribers) sync to your cloud history automatically.
+
 ## [2.5.0] - 2026-05-30
 
 ### Added

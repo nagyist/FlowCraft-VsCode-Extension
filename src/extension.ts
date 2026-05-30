@@ -15,6 +15,7 @@ import { initLogger } from "./utils/logger";
 import { TelemetryService } from "./services/telemetry-service";
 import { EntitlementService } from "./services/entitlement-service";
 import { CloudSyncService } from "./services/cloud-sync-service";
+import { requirePremium } from "./services/premium-gate";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
 
 const FLOWCRAFT_API_URL = "https://flowcraft-api-cb66lpneaq-ue.a.run.app";
@@ -439,6 +440,82 @@ export async function activate(context: vscode.ExtensionContext) {
     "flowcraft.syncNow",
     async () => {
       await cloudSyncService.syncNow();
+    }
+  );
+
+  let insertTemplateCommand = vscode.commands.registerCommand(
+    "flowcraft.insertTemplate",
+    async () => {
+      type TemplateItem = vscode.QuickPickItem & { id: string; type: string };
+      let items: TemplateItem[];
+      try {
+        const templates = await apiClient.getTemplates();
+        if (templates.length === 0) {
+          vscode.window.showInformationMessage("FlowCraft: no templates available right now.");
+          return;
+        }
+        items = templates.map((t) => ({
+          label: t.title,
+          description: t.category ? `$(symbol-color) ${t.category}` : undefined,
+          detail: t.description || undefined,
+          id: t.id,
+          type: t.type,
+        }));
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`FlowCraft: couldn't load templates · ${err?.message ?? err}`);
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(items, {
+        title: "FlowCraft · Premium Templates",
+        placeHolder: "Pick a template to insert as a new diagram",
+        matchOnDetail: true,
+        matchOnDescription: true,
+      });
+      if (!picked) return;
+
+      // Browsing is free; inserting (fetching the code) is premium.
+      const entitled = await requirePremium(
+        "premiumTemplates",
+        { entitlementService, authService, telemetry },
+        { featureLabel: "Premium templates" }
+      );
+      if (!entitled) return;
+
+      const token = await authService.getValidAccessToken();
+      if (!token) {
+        vscode.window.showErrorMessage("FlowCraft: please sign in to use templates.");
+        return;
+      }
+
+      try {
+        const tpl = await apiClient.useTemplate(token, picked.id);
+        const now = new Date();
+        const diagram: Diagram = {
+          id: `diagram_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          title: tpl.title || "Template diagram",
+          description: tpl.description || "",
+          type: (tpl.type as DiagramType) ?? DiagramType.Flowchart,
+          category: DiagramCategory.Mermaid,
+          content: tpl.code,
+          isPublic: false,
+          createdAt: now,
+          updatedAt: now,
+          tokensUsed: 0,
+        };
+        // Adds to history and (if signed-in + subscribed) auto-syncs to the cloud.
+        stateManager.addDiagram(diagram);
+
+        // Open the Mermaid in an untitled markdown doc for immediate use/preview.
+        const doc = await vscode.workspace.openTextDocument({
+          language: "markdown",
+          content: `# ${diagram.title}\n\n\`\`\`mermaid\n${tpl.code}\n\`\`\`\n`,
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.showInformationMessage(`FlowCraft: inserted template "${diagram.title}".`);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`FlowCraft: couldn't insert template · ${err?.message ?? err}`);
+      }
     }
   );
 
@@ -1368,6 +1445,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(openSettingsCommand);
   context.subscriptions.push(syncUsageCommand);
   context.subscriptions.push(syncNowCommand);
+  context.subscriptions.push(insertTemplateCommand);
   context.subscriptions.push(openGenerationViewCommand);
   context.subscriptions.push(showHistoryCommand);
   context.subscriptions.push(generateFromSelectionCommand);

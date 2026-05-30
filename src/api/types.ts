@@ -136,6 +136,27 @@ export interface MyDiagramsResponse {
   diagrams: CloudDiagram[];
 }
 
+// Premium templates
+export interface TemplatePreview {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  category?: string;
+}
+
+export interface TemplatesResponse {
+  templates: TemplatePreview[];
+}
+
+export interface UseTemplateResponse {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  code: string;
+}
+
 export interface PublicDiagramsResponse {
   diagrams: Array<{
     id: string;

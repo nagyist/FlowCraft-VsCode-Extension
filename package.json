@@ -8,7 +8,7 @@
     "url": "https://github.com/shagunmistry/FlowCraft-VsCode-Extension.git"
   },
   "icon": "FlowCraftLogo_New.png",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -114,6 +114,11 @@
         "command": "flowcraft.syncNow",
         "title": "FlowCraft: Sync Diagrams to Cloud",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "flowcraft.insertTemplate",
+        "title": "FlowCraft: Insert Premium Template",
+        "icon": "$(library)"
       },
       {
         "command": "flowcraft.generateFlowDiagram",

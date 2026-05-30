@@ -13,6 +13,7 @@ export interface ProviderEndpoints {
   usage: string;
   entitlement: string;
   myDiagrams: string;
+  templates: string;
   publicDiagrams: string;
 }
 
@@ -25,6 +26,7 @@ export const API_ENDPOINTS: ProviderEndpoints = {
   usage: '/v2/usage',
   entitlement: '/v2/me/entitlement',
   myDiagrams: '/v2/me/diagrams',
+  templates: '/v2/templates',
   publicDiagrams: '/v2/public-diagrams'
 };
 

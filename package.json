@@ -151,6 +151,11 @@
         "title": "FlowCraft: Reset API Keys"
       },
       {
+        "command": "flowcraft.setupApiKey",
+        "title": "FlowCraft: Set Up API Key",
+        "icon": "$(key)"
+      },
+      {
         "command": "flowcraft.signIn",
         "title": "FlowCraft: Sign In",
         "icon": "$(sign-in)"
@@ -205,6 +210,36 @@
         "key": "ctrl+shift+g",
         "mac": "cmd+shift+g",
         "when": "editorHasSelection"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "flowcraftGettingStarted",
+        "title": "Get Started with FlowCraft",
+        "description": "Add your AI provider key (BYOK) and generate your first diagram.",
+        "steps": [
+          {
+            "id": "addApiKey",
+            "title": "Add your API key (BYOK)",
+            "description": "FlowCraft uses your own AI provider key — nothing routes through FlowCraft's servers.\n[Set Up API Key](command:flowcraft.setupApiKey)",
+            "media": { "markdown": "media/walkthrough/step-key.md" },
+            "completionEvents": ["onContext:flowcraft.hasApiKey"]
+          },
+          {
+            "id": "generate",
+            "title": "Generate your first diagram",
+            "description": "Open the generation view and describe what you want.\n[Generate a Diagram](command:flowcraft.openGenerationView)",
+            "media": { "markdown": "media/walkthrough/step-generate.md" },
+            "completionEvents": ["onCommand:flowcraft.openGenerationView"]
+          },
+          {
+            "id": "more",
+            "title": "Go further",
+            "description": "Create infographics, sign in for Premium, or tweak settings.\n[Open Settings](command:flowcraft.openSettings)\n[Sign in for Premium](command:flowcraft.signIn)",
+            "media": { "markdown": "media/walkthrough/step-more.md" },
+            "completionEvents": ["onCommand:flowcraft.openSettings"]
+          }
+        ]
       }
     ],
     "configuration": {

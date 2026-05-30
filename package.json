@@ -8,7 +8,7 @@
     "url": "https://github.com/shagunmistry/FlowCraft-VsCode-Extension.git"
   },
   "icon": "FlowCraftLogo_New.png",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -119,6 +119,16 @@
         "command": "flowcraft.insertTemplate",
         "title": "FlowCraft: Insert Premium Template",
         "icon": "$(library)"
+      },
+      {
+        "command": "flowcraft.viewDiagram",
+        "title": "FlowCraft: Preview Diagram",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "flowcraft.exportDiagram",
+        "title": "FlowCraft: Export Diagram",
+        "icon": "$(export)"
       },
       {
         "command": "flowcraft.generateFlowDiagram",

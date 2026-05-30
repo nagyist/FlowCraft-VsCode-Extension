@@ -64,6 +64,21 @@ async function getProviderApiKey(
   return await apiKeyService.retrieve(provider);
 }
 
+/**
+ * Sync the `flowcraft.hasApiKey` context key with whether a key is stored for
+ * the default provider. Drives the onboarding walkthrough's "Add your API key"
+ * checkmark. Returns whether a key is present.
+ */
+async function refreshHasApiKeyContext(
+  apiKeyService: APIKeyService,
+  stateManager: StateManager
+): Promise<boolean> {
+  const provider = stateManager.getSetting("defaultProvider");
+  const hasKey = !!(await getProviderApiKey(apiKeyService, provider));
+  await vscode.commands.executeCommand("setContext", "flowcraft.hasApiKey", hasKey);
+  return hasKey;
+}
+
 function persistRawFetchDiagram(
   stateManager: StateManager,
   params: {
@@ -482,6 +497,40 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           `${picked.value} API key has been cleared. You will be prompted on next use.`
         );
+      }
+      await refreshHasApiKeyContext(apiKeyService, stateManager);
+    }
+  );
+
+  let setupApiKeyCommand = vscode.commands.registerCommand(
+    "flowcraft.setupApiKey",
+    async () => {
+      type ProviderItem = vscode.QuickPickItem & { value: Provider };
+      const items: ProviderItem[] = [
+        { label: "OpenAI", description: "GPT-4 / GPT-3.5 · key starts sk-", value: Provider.OpenAI },
+        { label: "Anthropic", description: "Claude · key starts sk-ant-", value: Provider.Anthropic },
+        { label: "Google", description: "Gemini · key starts AIza", value: Provider.Google },
+        { label: "FlowCraft", description: "FlowCraft token · starts fc_", value: Provider.FlowCraft },
+      ];
+      const picked = await vscode.window.showQuickPick(items, {
+        title: "FlowCraft · set up your AI provider",
+        placeHolder: "Choose the provider whose API key you'll use (BYOK)",
+      });
+      if (!picked) {
+        return;
+      }
+      stateManager.setSetting("defaultProvider", picked.value);
+      const key = await promptForProviderApiKey(apiKeyService, picked.value);
+      if (!key) {
+        return;
+      }
+      await refreshHasApiKeyContext(apiKeyService, stateManager);
+      const choice = await vscode.window.showInformationMessage(
+        `FlowCraft: ${picked.value} key saved — you're ready to generate diagrams.`,
+        "Generate a diagram"
+      );
+      if (choice === "Generate a diagram") {
+        await vscode.commands.executeCommand("flowcraft.openGenerationView");
       }
     }
   );
@@ -1490,6 +1539,24 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // First-run onboarding: open the Get Started walkthrough exactly once, and
+  // only when the user has no key yet (don't interrupt returning users).
+  const hasKeyOnStartup = await refreshHasApiKeyContext(apiKeyService, stateManager);
+  try {
+    const onboardingSeen =
+      context.globalState.get<boolean>("flowcraft.onboarding.seen") === true;
+    if (!onboardingSeen && !hasKeyOnStartup) {
+      await vscode.commands.executeCommand(
+        "workbench.action.openWalkthrough",
+        "FlowCraft.flowcraft#flowcraftGettingStarted",
+        false
+      );
+    }
+    await context.globalState.update("flowcraft.onboarding.seen", true);
+  } catch (err) {
+    console.error("FlowCraft: onboarding walkthrough failed to open:", err);
+  }
+
   const chatHandler = vscode.chat.createChatParticipant(
     "flowcraft.diagramAssistant",
     (req, ctx, stream, tok) => chatParticipant.handleRequest(req, ctx, stream, tok)
@@ -1500,6 +1567,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(generateClassDiagramDisposable);
   context.subscriptions.push(generateSelectionClassDiagramDisposable);
   context.subscriptions.push(resetKeyCommand);
+  context.subscriptions.push(setupApiKeyCommand);
   context.subscriptions.push(openWelcomeCommand);
   context.subscriptions.push(openSettingsCommand);
   context.subscriptions.push(syncUsageCommand);

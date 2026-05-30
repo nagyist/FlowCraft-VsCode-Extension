@@ -4,6 +4,11 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.5.0] - 2026-05-30
+
+### Added
+- **Cloud History Sync (Premium).** When you're signed in to FlowCraft and subscribed, diagrams you generate are automatically mirrored to your account — so they show up on the web dashboard and on your other machines. Run **FlowCraft: Sync Diagrams to Cloud** from the Command Palette to push everything and pull your cloud history on demand. Syncing is idempotent (re-syncing never creates duplicates). Generation itself stays free and BYOK; cloud sync is purely an account-level convenience for subscribers.
+
 ## [2.4.0] - 2026-05-29
 
 ### Added

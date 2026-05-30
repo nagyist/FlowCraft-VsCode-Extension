@@ -21,6 +21,11 @@ export class StateManager {
   private context: vscode.ExtensionContext;
   private listeners: Set<EventListener<State>> = new Set();
 
+  private readonly _onDidAddDiagram = new vscode.EventEmitter<Diagram>();
+  /** Fires once for each newly added diagram (every generation path funnels
+   *  through addDiagram). Cloud sync listens here to enqueue an upload. */
+  readonly onDidAddDiagram = this._onDidAddDiagram.event;
+
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.diagramStore = new DiagramStore();
@@ -38,6 +43,7 @@ export class StateManager {
     this.usageStore.incrementCreated();
     this.persist();
     this.notifyListeners();
+    this._onDidAddDiagram.fire(diagram);
   }
 
   removeDiagram(id: string): boolean {

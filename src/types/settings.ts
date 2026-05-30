@@ -53,6 +53,10 @@ export interface Settings {
   // telemetry setting (vscode.env.isTelemetryEnabled).
   telemetryEnabled: boolean;
 
+  // Premium — automatically sync generated diagrams to your FlowCraft cloud
+  // history when signed in and subscribed. Off = diagrams stay local only.
+  cloudSyncEnabled: boolean;
+
   // Advanced
   apiBaseUrl: string;
   maxConcurrentRequests: number;
@@ -82,6 +86,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showUsageWarnings: true,
   enableAnimations: true,
   telemetryEnabled: true,
+  cloudSyncEnabled: true,
   apiBaseUrl: 'https://flowcraft-api-cb66lpneaq-ue.a.run.app',
   maxConcurrentRequests: 3,
   requestTimeout: 60000

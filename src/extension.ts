@@ -14,6 +14,7 @@ import { SettingsViewProvider } from "./views/settings-view";
 import { initLogger } from "./utils/logger";
 import { TelemetryService } from "./services/telemetry-service";
 import { EntitlementService } from "./services/entitlement-service";
+import { CloudSyncService } from "./services/cloud-sync-service";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
 
 const FLOWCRAFT_API_URL = "https://flowcraft-api-cb66lpneaq-ue.a.run.app";
@@ -315,6 +316,17 @@ export async function activate(context: vscode.ExtensionContext) {
   const entitlementService = new EntitlementService(apiClient, authService);
   context.subscriptions.push({ dispose: () => entitlementService.dispose() });
 
+  // Premium cloud history sync — mirrors generated diagrams to the user's
+  // account when signed in + subscribed. Silent on the generation path.
+  const cloudSyncService = new CloudSyncService(
+    apiClient,
+    authService,
+    entitlementService,
+    stateManager,
+    telemetry
+  );
+  context.subscriptions.push({ dispose: () => cloudSyncService.dispose() });
+
   // Emit a `signed_in` telemetry event on a null → session transition.
   let wasSignedIn = authService.isSignedIn();
   context.subscriptions.push(
@@ -420,6 +432,13 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       // Focus the settings view
       await vscode.commands.executeCommand("flowcraft.settingsView.focus");
+    }
+  );
+
+  let syncNowCommand = vscode.commands.registerCommand(
+    "flowcraft.syncNow",
+    async () => {
+      await cloudSyncService.syncNow();
     }
   );
 
@@ -1348,6 +1367,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(openWelcomeCommand);
   context.subscriptions.push(openSettingsCommand);
   context.subscriptions.push(syncUsageCommand);
+  context.subscriptions.push(syncNowCommand);
   context.subscriptions.push(openGenerationViewCommand);
   context.subscriptions.push(showHistoryCommand);
   context.subscriptions.push(generateFromSelectionCommand);

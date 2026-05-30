@@ -105,6 +105,37 @@ export interface EntitlementResponse {
   };
 }
 
+// Cloud history sync (premium)
+export interface CloudDiagramRequest {
+  client_diagram_id: string;
+  title: string;
+  description?: string;
+  type: string;
+  content: string;
+  is_public: boolean;
+  metadata?: any;
+}
+
+export interface SyncDiagramResponse {
+  remote_id: string;
+  client_diagram_id: string;
+}
+
+export interface CloudDiagram {
+  remote_id: string;
+  client_diagram_id?: string | null;
+  title: string;
+  description?: string;
+  type: string;
+  content: string;
+  is_public: boolean;
+  created_at?: string;
+}
+
+export interface MyDiagramsResponse {
+  diagrams: CloudDiagram[];
+}
+
 export interface PublicDiagramsResponse {
   diagrams: Array<{
     id: string;

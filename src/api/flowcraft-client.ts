@@ -28,6 +28,10 @@ import {
   ImageEditRequest,
   UsageResponse,
   EntitlementResponse,
+  CloudDiagramRequest,
+  SyncDiagramResponse,
+  CloudDiagram,
+  MyDiagramsResponse,
   PublicDiagramsResponse,
   APIErrorResponse
 } from './types';
@@ -307,6 +311,52 @@ export class FlowCraftClient {
         advancedExports: !!response.features?.advanced_exports
       }
     };
+  }
+
+  /**
+   * Push a single diagram into the signed-in user's cloud history (premium).
+   * Idempotent on `client_diagram_id`. Requires a FlowCraft session Bearer
+   * token — NOT a BYOK provider key. Throws QuotaExceededError (402) when the
+   * account is not subscribed.
+   */
+  async syncDiagram(
+    bearerToken: string,
+    body: CloudDiagramRequest
+  ): Promise<SyncDiagramResponse> {
+    return this.makeRequest<SyncDiagramResponse>(API_ENDPOINTS.myDiagrams, {
+      method: 'POST',
+      body,
+      headers: { Authorization: `Bearer ${bearerToken}` }
+    });
+  }
+
+  /**
+   * Fetch the signed-in user's cloud diagrams, newest first (premium).
+   */
+  async getMyDiagrams(
+    bearerToken: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<CloudDiagram[]> {
+    const url = `${API_ENDPOINTS.myDiagrams}?limit=${limit}&offset=${offset}`;
+    const response = await this.makeRequest<MyDiagramsResponse>(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${bearerToken}` }
+    });
+    return response.diagrams || [];
+  }
+
+  /**
+   * Delete one of the user's own cloud diagrams (premium, ownership enforced).
+   */
+  async deleteMyDiagram(bearerToken: string, remoteId: string): Promise<void> {
+    await this.makeRequest<{ deleted: boolean }>(
+      `${API_ENDPOINTS.myDiagrams}/${remoteId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${bearerToken}` }
+      }
+    );
   }
 
   /**

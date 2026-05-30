@@ -4,6 +4,13 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.7.1] - 2026-05-30
+
+### Fixed
+- **"Open on web" no longer silently does nothing** in the in-extension diagram viewer. Generated diagrams now record their server id, so the button reliably opens the diagram on flowcraft.app. When a diagram genuinely isn't on the web yet (created locally and not synced), the button is disabled and offers to **Sign in to sync** instead of showing a dead-end toast.
+- **Toggling "Theme" on a diagram with a Mermaid error no longer pointlessly re-renders the broken diagram.** The viewer now remembers whether the last render succeeded; on a failed diagram, Theme and Export are disabled and a clear message points you to fix the diagram code first. The in-viewer error display is also friendlier.
+- **The "flowcraft › generating" progress notification no longer appears stuck.** API-key resolution now happens *before* the progress spinner starts, so a key-entry prompt can't sit hidden behind a spinning notification. The spinner now strictly covers the network request and render.
+
 ## [2.6.0] - 2026-05-30
 
 ### Added

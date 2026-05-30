@@ -87,6 +87,9 @@ function persistRawFetchDiagram(
       createdAt: now,
       updatedAt: now,
       tokensUsed: 0,
+      // The server id is the canonical web id — persist it explicitly so
+      // "Open on web" resolves a URL even if the local id scheme changes.
+      metadata: { remoteId: params.id },
     };
     stateManager.addDiagram(diagram);
     telemetryRef?.track("generation_succeeded", {
@@ -408,6 +411,64 @@ export async function activate(context: vscode.ExtensionContext) {
           vscode.env.clipboard.writeText(url);
         }
       });
+  };
+
+  // Shared driver for the legacy "flowcraft › generating" Mermaid flows
+  // (file / selection / class). Credentials are resolved BEFORE the progress
+  // notification is shown: resolveAuth can pop an API-key InputBox, and that
+  // box must never sit behind a spinning "generating" notification — that
+  // overlap is what made the spinner look like it never dismissed (v2.7.0 bug).
+  // The spinner now strictly wraps the network call + render.
+  const runMermaidGeneration = async (opts: {
+    body: { title?: string; description: string; type: string };
+    diagramType: DiagramType;
+    description: string;
+    errorMessage: string;
+  }): Promise<void> => {
+    const auth = await resolveAuth(authResolver, stateManager);
+    if (!auth) {
+      return;
+    }
+    const flowCraftApiUrl = process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "flowcraft › generating",
+        cancellable: false,
+      },
+      async (progress) => {
+        progress.report({ increment: 20, message: "sending to model…" });
+        try {
+          const response = await fetch(`${flowCraftApiUrl}/v2/diagrams/generate`, {
+            method: "POST",
+            headers: buildGenerateHeaders(auth),
+            body: JSON.stringify(opts.body),
+          });
+          const data: any = await response.json();
+          progress.report({ increment: 70, message: "rendering…" });
+          const _res = data?.response;
+          const inserted = _res?.inserted_diagram;
+          if (inserted && inserted.data && inserted.data.length > 0) {
+            progress.report({ increment: 100 });
+            showGeneratedDiagram({
+              id: inserted.data[0].id,
+              title: opts.body.title ?? "Untitled diagram",
+              description: opts.description,
+              type: opts.diagramType,
+              mermaidCode: _res?.mermaid_code ?? "",
+            });
+          } else {
+            vscode.window.showErrorMessage(opts.errorMessage);
+          }
+        } catch (error: any) {
+          telemetryRef?.track("generation_failed", {
+            error_kind: classifyErrorKind(error?.message ?? String(error)),
+          });
+          vscode.window.showErrorMessage(opts.errorMessage);
+          console.error("Error generating diagram:", error);
+        }
+      }
+    );
   };
 
   // Emit a `signed_in` telemetry event on a null → session transition.
@@ -1121,372 +1182,126 @@ export async function activate(context: vscode.ExtensionContext) {
   let generateFlowDiagramDisposable = vscode.commands.registerCommand(
     GENERATE_FLOW_DIAGRAM,
     async () => {
-      vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "flowcraft › generating",
-          cancellable: false,
-        },
-        async (progress, _token) => {
-          progress.report({ increment: 0 });
+      const activeEditor = vscode.window.activeTextEditor;
+      if (!activeEditor) {
+        vscode.window.showErrorMessage(
+          "No active editor found. Please open a file to generate a diagram."
+        );
+        return;
+      }
+      const fileName = activeEditor.document.fileName;
+      const fileExtension = fileName.split(".").pop();
+      if (!fileExtension) {
+        vscode.window.showErrorMessage(
+          "Please save the file with a valid extension."
+        );
+        return;
+      }
 
-          const activeEditor = vscode.window.activeTextEditor;
-          if (!activeEditor) {
-            vscode.window.showErrorMessage(
-              "No active editor found. Please open a file to generate a diagram."
-            );
-            return;
-          }
-          const fileName = activeEditor.document.fileName;
-          const fileExtension = fileName.split(".").pop();
+      const fileContent = activeEditor.document.getText();
+      if (fileContent.length === 0 || fileContent.length > 10000) {
+        vscode.window.showErrorMessage(
+          "The file content is either empty or too large (max 10,000 characters). If you have a large file, please contact us at https://flowcraft.app/support."
+        );
+        return;
+      }
 
-          progress.report({ increment: 20 });
+      let title = fileName.split("\\").pop();
+      title = title?.replace(/\s/g, "_");
 
-          if (!fileExtension) {
-            vscode.window.showErrorMessage(
-              "Please save the file with a valid extension."
-            );
-            return;
-          }
-
-          const fileContent = activeEditor.document.getText();
-          if (fileContent.length === 0 || fileContent.length > 10000) {
-            vscode.window.showErrorMessage(
-              "The file content is either empty or too large (max 10,000 characters). If you have a large file, please contact us at https://flowcraft.app/support."
-            );
-            return;
-          }
-
-          const flowCraftApiUrl =
-            process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
-
-          let title = fileName.split("\\").pop();
-          title = title?.replace(/\s/g, "_");
-          const body = {
-            title,
-            description: fileContent,
-            type: "flowchart",
-          };
-
-          progress.report({ increment: 40 });
-
-          const auth = await resolveAuth(authResolver, stateManager);
-          if (!auth) return;
-
-          console.log("Request Body: ", body);
-
-          try {
-            const response = await fetch(
-              `${flowCraftApiUrl}/v2/diagrams/generate`,
-              {
-                method: "POST",
-                headers: buildGenerateHeaders(auth),
-                body: JSON.stringify(body),
-              }
-            );
-            const data: any = await response.json();
-            progress.report({ increment: 80 });
-            console.log("RESPONSE Data: ", data.response);
-
-            const _res = data.response;
-            let diagram = _res.mermaid_code;
-            console.log("Diagram: ", diagram);
-
-            const inserted_diagram = _res.inserted_diagram;
-
-            console.log("Inserted Diagram: ", inserted_diagram);
-            if (
-              inserted_diagram &&
-              inserted_diagram.data &&
-              inserted_diagram.data.length > 0
-            ) {
-              progress.report({ increment: 100 });
-              showGeneratedDiagram({
-                id: inserted_diagram.data[0].id,
-                title: title ?? "Untitled diagram",
-                description: fileContent,
-                type: DiagramType.Flowchart,
-                mermaidCode: diagram,
-              });
-            } else {
-              vscode.window.showErrorMessage(
-                "An error occurred while generating the diagram. Please try again later."
-              );
-            }
-          } catch (error: any) {
-            telemetryRef?.track("generation_failed", {
-              error_kind: classifyErrorKind(error?.message ?? String(error)),
-            });
-            vscode.window.showErrorMessage(
-              "An error occurred while generating the diagram. Please try again later."
-            );
-            console.error("Error: ", error);
-          }
-        }
-      );
+      await runMermaidGeneration({
+        body: { title, description: fileContent, type: "flowchart" },
+        diagramType: DiagramType.Flowchart,
+        description: fileContent,
+        errorMessage:
+          "An error occurred while generating the diagram. Please try again later.",
+      });
     }
   );
 
   let generateSelectionDiagramDisposable = vscode.commands.registerCommand(
     GENERATE_SELECTION_FLOW_DIAGRAM,
     async () => {
-      vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "flowcraft › generating",
-          cancellable: false,
-        },
-        async (progress, _token) => {
-          progress.report({ increment: 0 });
+      const activeEditor = vscode.window.activeTextEditor;
+      if (!activeEditor) {
+        vscode.window.showErrorMessage(
+          "No active editor found. Please open a file to generate a diagram."
+        );
+        return;
+      }
 
-          const activeEditor = vscode.window.activeTextEditor;
-          if (!activeEditor) {
-            vscode.window.showErrorMessage(
-              "No active editor found. Please open a file to generate a diagram."
-            );
-            return;
-          }
+      const selection = activeEditor.document.getText(activeEditor.selection);
+      if (selection.length === 0 || selection.length > 10000) {
+        vscode.window.showErrorMessage(
+          "The selection is either empty or too large (max 10,000 characters). If you have a large selection, please contact us at https://flowcraft.app/support."
+        );
+        return;
+      }
 
-          const selection = activeEditor.document.getText(
-            activeEditor.selection
-          );
+      const fileNameOnly =
+        (activeEditor.document.fileName || "Untitled").split("\\").pop() ||
+        "Untitled";
+      const title = fileNameOnly.replace(/\s/g, "_");
 
-          if (selection.length === 0 || selection.length > 10000) {
-            vscode.window.showErrorMessage(
-              "The selection is either empty or too large (max 10,000 characters). If you have a large selection, please contact us at https://flowcraft.app/support."
-            );
-            return;
-          }
-
-          const flowCraftApiUrl =
-            process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
-
-          let title = activeEditor.document.fileName || "Untitled";
-          const fileNameOnly = title.split("\\").pop() || "Untitled";
-          title = fileNameOnly.replace(/\s/g, "_");
-          const body = {
-            title,
-            description: selection,
-            type: "flowchart",
-          };
-
-          progress.report({ increment: 40 });
-
-          const auth = await resolveAuth(authResolver, stateManager);
-          if (!auth) return;
-
-          try {
-            const response = await fetch(
-              `${flowCraftApiUrl}/v2/diagrams/generate`,
-              {
-                method: "POST",
-                headers: buildGenerateHeaders(auth),
-                body: JSON.stringify(body),
-              }
-            );
-            const data: any = await response.json();
-            progress.report({ increment: 80 });
-            console.log("RESPONSE Data: ", data.response);
-
-            const _res = data.response;
-            let diagram = _res.mermaid_code;
-            console.log("Diagram: ", diagram);
-
-            const inserted_diagram = _res.inserted_diagram;
-
-            console.log("Inserted Diagram: ", inserted_diagram);
-            if (
-              inserted_diagram &&
-              inserted_diagram.data &&
-              inserted_diagram.data.length > 0
-            ) {
-              progress.report({ increment: 100 });
-              showGeneratedDiagram({
-                id: inserted_diagram.data[0].id,
-                title: title ?? "Untitled diagram",
-                description: selection,
-                type: DiagramType.Flowchart,
-                mermaidCode: diagram,
-              });
-            }
-          } catch (error: any) {
-            telemetryRef?.track("generation_failed", {
-              error_kind: classifyErrorKind(error?.message ?? String(error)),
-            });
-            vscode.window.showErrorMessage(
-              "An error occurred while generating the diagram. Please try again later."
-            );
-            console.error("Error: ", error);
-          }
-        }
-      );
+      await runMermaidGeneration({
+        body: { title, description: selection, type: "flowchart" },
+        diagramType: DiagramType.Flowchart,
+        description: selection,
+        errorMessage:
+          "An error occurred while generating the diagram. Please try again later.",
+      });
     }
   );
 
   let generateClassDiagramDisposable = vscode.commands.registerCommand(
     GENERATE_CLASS_DIAGRAM,
     async () => {
-      vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "flowcraft › generating",
-          cancellable: false,
-        },
-        async (progress, _token) => {
-          progress.report({ increment: 0 });
+      const fileContext = await getCurrentOpenFileText();
+      if (fileContext.length === 0 || fileContext.length > 10000) {
+        vscode.window.showErrorMessage(
+          "The file content is either empty or too large (max 10,000 characters). If you have a large file, please contact us at https://flowcraft.app/support."
+        );
+        return;
+      }
 
-          const fileContext = await getCurrentOpenFileText();
-
-          if (fileContext.length === 0 || fileContext.length > 10000) {
-            vscode.window.showErrorMessage(
-              "The file content is either empty or too large (max 10,000 characters). If you have a large file, please contact us at https://flowcraft.app/support."
-            );
-            return;
-          }
-
-          const flowCraftApiUrl =
-            process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
-
-          let title = `Class Diagram - ${new Date().toISOString()}`;
-          title = title?.replace(/\s/g, "_");
-          const body = {
-            title,
-            description: fileContext,
-            type: "classDiagram",
-          };
-
-          progress.report({ increment: 40 });
-
-          const auth = await resolveAuth(authResolver, stateManager);
-          if (!auth) return;
-
-          try {
-            const response = await fetch(
-              `${flowCraftApiUrl}/v2/diagrams/generate`,
-              {
-                method: "POST",
-                headers: buildGenerateHeaders(auth),
-                body: JSON.stringify(body),
-              }
-            );
-            const data: any = await response.json();
-            progress.report({ increment: 80 });
-            console.log("RESPONSE Data: ", data.response);
-
-            const _res = data.response;
-            let diagram = _res.mermaid_code;
-            console.log("Diagram: ", diagram);
-
-            const inserted_diagram = _res.inserted_diagram;
-
-            console.log("Inserted Diagram: ", inserted_diagram);
-            if (
-              inserted_diagram &&
-              inserted_diagram.data &&
-              inserted_diagram.data.length > 0
-            ) {
-              progress.report({ increment: 100 });
-              showGeneratedDiagram({
-                id: inserted_diagram.data[0].id,
-                title: title ?? "Untitled diagram",
-                description: fileContext,
-                type: DiagramType.Class,
-                mermaidCode: diagram,
-              });
-            }
-          } catch (error: any) {
-            telemetryRef?.track("generation_failed", {
-              error_kind: classifyErrorKind(error?.message ?? String(error)),
-            });
-            vscode.window.showErrorMessage(
-              "An error occurred while generating the diagram. Please try again later."
-            );
-            console.error("Error: ", error);
-          }
-        }
+      const title = `Class Diagram - ${new Date().toISOString()}`.replace(
+        /\s/g,
+        "_"
       );
+
+      await runMermaidGeneration({
+        body: { title, description: fileContext, type: "classDiagram" },
+        diagramType: DiagramType.Class,
+        description: fileContext,
+        errorMessage:
+          "An error occurred while generating the diagram. Please try again later.",
+      });
     }
   );
 
   let generateSelectionClassDiagramDisposable = vscode.commands.registerCommand(
     GENERATE_SELECTION_CLASS_DIAGRAM,
     async () => {
-      vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "flowcraft › generating",
-          cancellable: false,
-        },
-        async (progress, _token) => {
-          progress.report({ increment: 0 });
+      const selection = await getSelectionText();
+      if (selection.length === 0 || selection.length > 10000) {
+        vscode.window.showErrorMessage(
+          "The selection is either empty or too large (max 10,000 characters). If you have a large selection, please contact us at https://flowcraft.app/support."
+        );
+        return;
+      }
 
-          const selection = await getSelectionText();
-
-          if (selection.length === 0 || selection.length > 10000) {
-            vscode.window.showErrorMessage(
-              "The selection is either empty or too large (max 10,000 characters). If you have a large selection, please contact us at https://flowcraft.app/support."
-            );
-            return;
-          }
-
-          const flowCraftApiUrl =
-            process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
-
-          let title = `Class Diagram - ${new Date().toISOString()}`;
-          title = title?.replace(/\s/g, "_");
-          const body = {
-            title,
-            description: selection,
-            type: "classDiagram",
-          };
-
-          progress.report({ increment: 40 });
-
-          const auth = await resolveAuth(authResolver, stateManager);
-          if (!auth) return;
-
-          try {
-            const response = await fetch(
-              `${flowCraftApiUrl}/v2/diagrams/generate`,
-              {
-                method: "POST",
-                headers: buildGenerateHeaders(auth),
-                body: JSON.stringify(body),
-              }
-            );
-            const data: any = await response.json();
-            progress.report({ increment: 80 });
-            console.log("RESPONSE Data: ", data.response);
-
-            const _res = data.response;
-            let diagram = _res.mermaid_code;
-            console.log("Diagram: ", diagram);
-
-            const inserted_diagram = _res.inserted_diagram;
-
-            console.log("Inserted Diagram: ", inserted_diagram);
-            if (
-              inserted_diagram &&
-              inserted_diagram.data &&
-              inserted_diagram.data.length > 0
-            ) {
-              progress.report({ increment: 100 });
-              showGeneratedDiagram({
-                id: inserted_diagram.data[0].id,
-                title: title ?? "Untitled diagram",
-                description: selection,
-                type: DiagramType.Class,
-                mermaidCode: diagram,
-              });
-            }
-          } catch (error: any) {
-            vscode.window.showErrorMessage(
-              "An error occurred while generating the diagram from the selection. Please try again later."
-            );
-            console.error("Error: ", error);
-          }
-        }
+      const title = `Class Diagram - ${new Date().toISOString()}`.replace(
+        /\s/g,
+        "_"
       );
+
+      await runMermaidGeneration({
+        body: { title, description: selection, type: "classDiagram" },
+        diagramType: DiagramType.Class,
+        description: selection,
+        errorMessage:
+          "An error occurred while generating the diagram from the selection. Please try again later.",
+      });
     }
   );
 

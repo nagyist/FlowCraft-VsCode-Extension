@@ -47,6 +47,20 @@ export class AuthResolver {
       };
     }
 
+    return this.resolveByok();
+  }
+
+  /**
+   * BYOK-only resolution. Diagram generation must ALWAYS authenticate with the
+   * user's own provider key (`X-api-key`), regardless of whether they are
+   * signed in to FlowCraft. If we let a signed-in user's generation switch to a
+   * Bearer JWT, the API would generate on FlowCraft's server keys — silently
+   * re-introducing the per-generation cost the BYOK-only model removed.
+   *
+   * Sign-in / JWT (via `resolve()`) is therefore reserved for premium account
+   * endpoints (entitlement, cloud sync), never for generation.
+   */
+  async resolveByok(): Promise<ResolvedAuth> {
     const provider = this.deps.getDefaultProvider();
     const key = await this.deps.ensureProviderKey(provider);
     if (!key) {

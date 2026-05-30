@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import { StateManager } from '../state/state-manager';
 import { APIKeyService } from '../services/api-key-service';
 import { AuthService } from '../services/auth-service';
-import { Settings, Provider } from '../types';
+import { EntitlementService } from '../services/entitlement-service';
+import { FLOWCRAFT_PRICING_URL, FLOWCRAFT_BILLING_URL } from '../services/premium-gate';
+import { Settings, Provider, Entitlement } from '../types';
 import { setupMessageListener, getNonce, getWebviewUri } from '../utils/webview-utils';
 
 export class SettingsViewProvider implements vscode.WebviewViewProvider {
@@ -13,7 +15,8 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly stateManager: StateManager,
     private readonly apiKeyService: APIKeyService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly entitlementService: EntitlementService
   ) {}
 
   async resolveWebviewView(
@@ -42,7 +45,9 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
       resetSettings: async () => this.resetSettings(),
       resetApiKeys: async () => { await vscode.commands.executeCommand('flowcraft.resetApiKey'); },
       signIn:  async () => { await vscode.commands.executeCommand('flowcraft.signIn'); },
-      signOut: async () => { await vscode.commands.executeCommand('flowcraft.signOut'); }
+      signOut: async () => { await vscode.commands.executeCommand('flowcraft.signOut'); },
+      upgrade: async () => { await vscode.env.openExternal(vscode.Uri.parse(FLOWCRAFT_PRICING_URL)); },
+      manageSubscription: async () => { await vscode.env.openExternal(vscode.Uri.parse(FLOWCRAFT_BILLING_URL)); }
     });
 
     // Update on state changes
@@ -54,16 +59,38 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
     this.authService.onDidChangeSession(() => {
       this.sendAccountData();
     });
+
+    // Update when entitlement resolves/changes (sign-in, subscription flip).
+    this.entitlementService.onDidChange(() => {
+      this.sendAccountData();
+    });
+  }
+
+  /** Build the account payload sent to the webview (sign-in + premium state). */
+  private async buildAccountPayload(): Promise<Record<string, unknown>> {
+    const session = await this.authService.getSession();
+    if (!session) {
+      return { signedIn: false, subscribed: false };
+    }
+    let entitlement: Entitlement | null = null;
+    try {
+      entitlement = await this.entitlementService.get();
+    } catch {
+      entitlement = null;
+    }
+    return {
+      signedIn: true,
+      email: session.email,
+      subscribed: !!entitlement?.subscribed,
+      plan: entitlement?.plan ?? null,
+    };
   }
 
   private async sendAccountData(): Promise<void> {
     if (!this._view) return;
-    const session = await this.authService.getSession();
     this._view.webview.postMessage({
       command: 'accountUpdated',
-      data: session
-        ? { signedIn: true, email: session.email }
-        : { signedIn: false },
+      data: await this.buildAccountPayload(),
     });
   }
 
@@ -78,15 +105,12 @@ export class SettingsViewProvider implements vscode.WebviewViewProvider {
         providers[provider] = await this.apiKeyService.has(provider);
       }
 
-      const session = await this.authService.getSession();
       this._view.webview.postMessage({
         command: 'updateSettings',
         data: {
           settings,
           providers,
-          account: session
-            ? { signedIn: true, email: session.email }
-            : { signedIn: false }
+          account: await this.buildAccountPayload()
         }
       });
     }

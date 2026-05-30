@@ -11,6 +11,7 @@ import {
   DiagramResult,
   ImageResult,
   UsageStats,
+  Entitlement,
   PublicDiagram,
   Provider
 } from '../types';
@@ -26,6 +27,7 @@ import {
   ImageGenerationResponse,
   ImageEditRequest,
   UsageResponse,
+  EntitlementResponse,
   PublicDiagramsResponse,
   APIErrorResponse
 } from './types';
@@ -277,6 +279,33 @@ export class FlowCraftClient {
       remaining: response.remaining,
       canCreate: response.can_create,
       message: response.message
+    };
+  }
+
+  /**
+   * Get the signed-in user's premium entitlement. Requires a FlowCraft session
+   * Bearer token (NOT a BYOK provider key) — this is an account-level endpoint
+   * that has nothing to do with generation, which always stays BYOK.
+   */
+  async getEntitlement(bearerToken: string): Promise<Entitlement> {
+    const response = await this.makeRequest<EntitlementResponse>(
+      API_ENDPOINTS.entitlement,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${bearerToken}` }
+      }
+    );
+
+    return {
+      userId: response.user_id,
+      email: response.email ?? undefined,
+      subscribed: response.subscribed,
+      plan: response.plan ?? undefined,
+      features: {
+        cloudSync: !!response.features?.cloud_sync,
+        premiumTemplates: !!response.features?.premium_templates,
+        advancedExports: !!response.features?.advanced_exports
+      }
     };
   }
 

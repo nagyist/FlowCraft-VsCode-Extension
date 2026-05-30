@@ -13,6 +13,7 @@ import { WelcomeViewProvider } from "./views/welcome-view";
 import { SettingsViewProvider } from "./views/settings-view";
 import { initLogger } from "./utils/logger";
 import { TelemetryService } from "./services/telemetry-service";
+import { EntitlementService } from "./services/entitlement-service";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
 
 const FLOWCRAFT_API_URL = "https://flowcraft-api-cb66lpneaq-ue.a.run.app";
@@ -220,15 +221,17 @@ async function ensureProviderApiKey(
 }
 
 /**
- * Resolve outgoing auth: prefer signed-in Bearer token, fall back to BYOK.
- * Returns null if neither is available (and surfaces an error toast).
+ * Resolve outgoing auth for DIAGRAM GENERATION. Always BYOK (`X-api-key`),
+ * even for signed-in users — generation must never run on FlowCraft's server
+ * keys (see AuthResolver.resolveByok). Sign-in/JWT is for premium endpoints
+ * only. Returns null if no BYOK key is available (and surfaces an error toast).
  */
 async function resolveAuth(
   authResolver: AuthResolver,
   stateManager: StateManager
 ): Promise<ResolvedAuth | null> {
   try {
-    return await authResolver.resolve();
+    return await authResolver.resolveByok();
   } catch (err) {
     if (err instanceof NoCredentialsError) {
       showApiKeyError(stateManager.getSetting("defaultProvider"));
@@ -308,6 +311,22 @@ export async function activate(context: vscode.ExtensionContext) {
     apiKeyService
   );
 
+  // Premium entitlement (account-level; never gates generation, which stays BYOK).
+  const entitlementService = new EntitlementService(apiClient, authService);
+  context.subscriptions.push({ dispose: () => entitlementService.dispose() });
+
+  // Emit a `signed_in` telemetry event on a null → session transition.
+  let wasSignedIn = authService.isSignedIn();
+  context.subscriptions.push(
+    authService.onDidChangeSession((session) => {
+      const nowSignedIn = !!session;
+      if (nowSignedIn && !wasSignedIn) {
+        telemetry.track("signed_in");
+      }
+      wasSignedIn = nowSignedIn;
+    })
+  );
+
   // Initialize View Providers
   const welcomeProvider = new WelcomeViewProvider(
     context.extensionUri,
@@ -326,7 +345,8 @@ export async function activate(context: vscode.ExtensionContext) {
     context.extensionUri,
     stateManager,
     apiKeyService,
-    authService
+    authService,
+    entitlementService
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

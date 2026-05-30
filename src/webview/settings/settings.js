@@ -89,9 +89,11 @@ function wire() {
     postMessage('resetApiKeys');
   });
 
-  // Account: sign-in / sign-out delegate to the extension commands.
+  // Account: sign-in / sign-out / premium delegate to the extension commands.
   getById('account-signin')?.addEventListener('click', () => postMessage('signIn'));
   getById('account-signout')?.addEventListener('click', () => postMessage('signOut'));
+  getById('account-upgrade')?.addEventListener('click', () => postMessage('upgrade'));
+  getById('account-manage')?.addEventListener('click', () => postMessage('manageSubscription'));
 
   // Reveal / hide passwords
   getById('reveal-btn')?.addEventListener('click', () => {
@@ -143,25 +145,45 @@ function save() {
 }
 
 function renderAccount(account) {
-  const block  = getById('account-block');
-  const status = getById('account-status');
-  const email  = getById('account-email');
-  const inBtn  = getById('account-signin');
-  const outBtn = getById('account-signout');
+  const block   = getById('account-block');
+  const status  = getById('account-status');
+  const email   = getById('account-email');
+  const inBtn   = getById('account-signin');
+  const outBtn  = getById('account-signout');
+  const upBtn   = getById('account-upgrade');
+  const mgBtn   = getById('account-manage');
+  const badge   = getById('account-plan-badge');
   if (!status) return;
-  const signedIn = !!(account && account.signedIn);
+  const signedIn   = !!(account && account.signedIn);
+  const subscribed = !!(account && account.subscribed);
   if (block) block.classList.toggle('signed-in', signedIn);
   if (signedIn) {
     status.textContent = 'Signed in';
     if (email) email.textContent = account.email || '';
     if (inBtn) inBtn.hidden = true;
     if (outBtn) outBtn.hidden = false;
+    // Premium: show plan badge + Upgrade (free) or Manage (subscribed).
+    if (badge) {
+      badge.hidden = false;
+      badge.textContent = subscribed ? (planLabel(account.plan) || 'Premium') : 'Free';
+      badge.classList.toggle('st-badge-premium', subscribed);
+    }
+    if (upBtn) upBtn.hidden = subscribed;
+    if (mgBtn) mgBtn.hidden = !subscribed;
   } else {
     status.textContent = 'Signed out';
     if (email) email.textContent = '';
     if (inBtn) inBtn.hidden = false;
     if (outBtn) outBtn.hidden = true;
+    if (upBtn) upBtn.hidden = true;
+    if (mgBtn) mgBtn.hidden = true;
+    if (badge) badge.hidden = true;
   }
+}
+
+function planLabel(plan) {
+  if (!plan || typeof plan !== 'string') return '';
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
 }
 
 function render() {

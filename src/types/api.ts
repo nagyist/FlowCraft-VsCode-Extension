@@ -26,6 +26,25 @@ export interface UsageStats {
   message?: string;
 }
 
+/** Premium feature flags derived from the user's subscription. */
+export interface EntitlementFeatures {
+  cloudSync: boolean;
+  premiumTemplates: boolean;
+  advancedExports: boolean;
+}
+
+/** A premium feature key the extension can gate on. */
+export type PremiumFeature = keyof EntitlementFeatures;
+
+/** The signed-in user's premium entitlement (from GET /v2/me/entitlement). */
+export interface Entitlement {
+  userId: string;
+  email?: string;
+  subscribed: boolean;
+  plan?: string;
+  features: EntitlementFeatures;
+}
+
 export interface PublicDiagram {
   id: string;
   title: string;

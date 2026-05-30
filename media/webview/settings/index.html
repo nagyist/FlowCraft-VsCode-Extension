@@ -33,7 +33,7 @@
         <section class="st-section" aria-labelledby="account-heading">
             <div class="st-section-head">
                 <h2 id="account-heading" class="st-section-title">Account</h2>
-                <p class="st-section-desc">Sign in to use your FlowCraft subscription instead of pasting a provider key.</p>
+                <p class="st-section-desc">Diagram generation is always free with your own API key. Sign in to unlock <strong>Premium</strong> — cloud sync, premium templates, and advanced exports.</p>
             </div>
             <div class="st-card">
                 <div class="st-provider" id="account-block">
@@ -42,9 +42,12 @@
                             <span class="st-provider-name" id="account-status">Signed out</span>
                             <span id="account-email" class="st-provider-hint"></span>
                         </div>
+                        <span class="st-badge" id="account-plan-badge" hidden>Free</span>
                     </div>
                     <div class="st-provider-control" id="account-actions">
                         <button class="btn btn-sm" id="account-signin">Sign in</button>
+                        <button class="btn btn-sm" id="account-upgrade" hidden>Upgrade to Premium</button>
+                        <button class="btn btn-sm" id="account-manage" hidden>Manage subscription</button>
                         <button class="btn btn-sm" id="account-signout" hidden>Sign out</button>
                     </div>
                 </div>

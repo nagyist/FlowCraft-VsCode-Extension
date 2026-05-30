@@ -93,6 +93,18 @@ export interface UsageResponse {
   remaining: number;
 }
 
+export interface EntitlementResponse {
+  user_id: string;
+  email?: string | null;
+  subscribed: boolean;
+  plan?: string | null;
+  features: {
+    cloud_sync: boolean;
+    premium_templates: boolean;
+    advanced_exports: boolean;
+  };
+}
+
 export interface PublicDiagramsResponse {
   diagrams: Array<{
     id: string;

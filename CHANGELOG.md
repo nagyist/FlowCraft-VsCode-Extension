@@ -4,6 +4,14 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.4.0] - 2026-05-29
+
+### Added
+- FlowCraft Premium account layer. Sign in to see your plan in **Settings → Account**, with **Upgrade to Premium** / **Manage subscription** links. Premium will unlock cloud history sync, premium templates, and advanced exports (rolling out next).
+
+### Changed
+- Diagram generation now **always** uses your own provider API key (BYOK), even when you're signed in to FlowCraft. Signing in only unlocks account-level premium features — it never routes your generations through FlowCraft's servers. This keeps generation free and private.
+
 ## [2.3.1] - 2026-05-29
 
 ### Fixed

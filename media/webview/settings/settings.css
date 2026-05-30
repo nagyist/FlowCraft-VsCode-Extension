@@ -386,3 +386,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .st-head, .st-section { animation: none; }
 }
+
+/* ——— Premium plan badge ——— */
+.st-badge {
+  align-self: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-contrastBorder, transparent);
+}
+.st-badge-premium {
+  background: linear-gradient(135deg, #7c4dff, #b388ff);
+  color: #fff;
+  border-color: transparent;
+}

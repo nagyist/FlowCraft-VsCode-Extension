@@ -73,7 +73,7 @@ function persistRawFetchDiagram(
     type: DiagramType;
     mermaidCode: string;
   }
-): void {
+): Diagram | undefined {
   try {
     const now = new Date();
     const diagram: Diagram = {
@@ -93,9 +93,32 @@ function persistRawFetchDiagram(
       diagram_type: params.type,
       provider: stateManager.getSetting("defaultProvider"),
     });
+    return diagram;
   } catch (err) {
     console.error("Failed to persist diagram to history:", err);
+    return undefined;
   }
+}
+
+/** Map the generation QuickPick's display label to a DiagramType (best effort). */
+function displayTypeToDiagramType(display: string): DiagramType {
+  const key = display.toLowerCase();
+  if (key.includes("sequence")) return DiagramType.Sequence;
+  if (key.includes("class")) return DiagramType.Class;
+  if (key.includes("state")) return DiagramType.State;
+  if (key.includes("entity") || key.includes("er ")) return DiagramType.ER;
+  if (key.includes("gantt")) return DiagramType.Gantt;
+  if (key.includes("pie")) return DiagramType.Pie;
+  if (key.includes("timeline")) return DiagramType.Timeline;
+  if (key.includes("mindmap")) return DiagramType.Mindmap;
+  if (key.includes("requirement")) return DiagramType.Requirement;
+  if (key.includes("journey")) return DiagramType.UserJourney;
+  if (key.includes("gitgraph") || key.includes("git")) return DiagramType.Gitgraph;
+  if (key.includes("quadrant")) return DiagramType.Quadrant;
+  if (key.includes("zenuml")) return DiagramType.Zenuml;
+  if (key.includes("sankey")) return DiagramType.Sankey;
+  if (key.includes("treemap")) return DiagramType.Treemap;
+  return DiagramType.Flowchart;
 }
 
 async function promptForProviderApiKey(
@@ -355,6 +378,36 @@ export async function activate(context: vscode.ExtensionContext) {
       return `https://flowcraft.app/vscode/${diagram.id}`;
     }
     return undefined;
+  };
+
+  // Persist a freshly generated Mermaid diagram, then preview it in the
+  // in-extension viewer (6A). The browser stays available as a fallback via the
+  // toast action and the viewer's "Open on web" button.
+  const showGeneratedDiagram = (params: {
+    id: string;
+    title: string;
+    description: string;
+    type: DiagramType;
+    mermaidCode: string;
+  }): void => {
+    const diagram = persistRawFetchDiagram(stateManager, params);
+    const url = `https://flowcraft.app/vscode/${params.id}`;
+    if (diagram) {
+      void renderService.view(diagram);
+    }
+    vscode.window
+      .showInformationMessage(
+        "FlowCraft: diagram ready — previewing in the editor.",
+        "Open on web",
+        "Copy Link"
+      )
+      .then((choice) => {
+        if (choice === "Open on web") {
+          vscode.env.openExternal(vscode.Uri.parse(url));
+        } else if (choice === "Copy Link") {
+          vscode.env.clipboard.writeText(url);
+        }
+      });
   };
 
   // Emit a `signed_in` telemetry event on a null → session transition.
@@ -958,11 +1011,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 inserted_diagram.data.length > 0
               ) {
                 progress.report({ message: "done", increment: 10 });
-                telemetry.track("generation_succeeded", {
-                  diagram_type: selectedType,
-                  provider: stateManager.getSetting("defaultProvider"),
+                showGeneratedDiagram({
+                  id: inserted_diagram.data[0].id,
+                  title,
+                  description: codeContent,
+                  type: displayTypeToDiagramType(selectedType),
+                  mermaidCode: _res.mermaid_code ?? "",
                 });
-                openDiagramResult(inserted_diagram.data[0].id);
               } else {
                 telemetry.track("generation_failed", {
                   diagram_type: selectedType,
@@ -1146,30 +1201,13 @@ export async function activate(context: vscode.ExtensionContext) {
               inserted_diagram.data.length > 0
             ) {
               progress.report({ increment: 100 });
-              const diagramId = inserted_diagram.data[0].id;
-
-              persistRawFetchDiagram(stateManager, {
-                id: diagramId,
+              showGeneratedDiagram({
+                id: inserted_diagram.data[0].id,
                 title: title ?? "Untitled diagram",
                 description: fileContent,
                 type: DiagramType.Flowchart,
                 mermaidCode: diagram,
               });
-
-              const diagramUrl = `https://flowcraft.app/vscode/${diagramId}`;
-
-              vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-
-              vscode.window
-                .showInformationMessage(
-                  "The diagram has been successfully generated. If the diagram does not open automatically, please click on the link below.",
-                  "Open Diagram"
-                )
-                .then((selection) => {
-                  if (selection === "Open Diagram") {
-                    vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-                  }
-                });
             } else {
               vscode.window.showErrorMessage(
                 "An error occurred while generating the diagram. Please try again later."
@@ -1263,29 +1301,13 @@ export async function activate(context: vscode.ExtensionContext) {
               inserted_diagram.data.length > 0
             ) {
               progress.report({ increment: 100 });
-              const diagramId = inserted_diagram.data[0].id;
-
-              persistRawFetchDiagram(stateManager, {
-                id: diagramId,
+              showGeneratedDiagram({
+                id: inserted_diagram.data[0].id,
                 title: title ?? "Untitled diagram",
                 description: selection,
                 type: DiagramType.Flowchart,
                 mermaidCode: diagram,
               });
-
-              const diagramUrl = `https://flowcraft.app/vscode/${diagramId}`;
-
-              vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-              vscode.window
-                .showInformationMessage(
-                  "The diagram has been successfully generated. If the diagram does not open automatically, please click on the link below.",
-                  "Open Diagram"
-                )
-                .then((selection) => {
-                  if (selection === "Open Diagram") {
-                    vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-                  }
-                });
             }
           } catch (error: any) {
             telemetryRef?.track("generation_failed", {
@@ -1364,30 +1386,13 @@ export async function activate(context: vscode.ExtensionContext) {
               inserted_diagram.data.length > 0
             ) {
               progress.report({ increment: 100 });
-              const diagramId = inserted_diagram.data[0].id;
-
-              persistRawFetchDiagram(stateManager, {
-                id: diagramId,
+              showGeneratedDiagram({
+                id: inserted_diagram.data[0].id,
                 title: title ?? "Untitled diagram",
                 description: fileContext,
                 type: DiagramType.Class,
                 mermaidCode: diagram,
               });
-
-              const diagramUrl = `https://flowcraft.app/vscode/${diagramId}`;
-
-              vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-
-              vscode.window
-                .showInformationMessage(
-                  "The diagram has been successfully generated. If the diagram does not open automatically, please click on the link below.",
-                  "Open Diagram"
-                )
-                .then((selection) => {
-                  if (selection === "Open Diagram") {
-                    vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-                  }
-                });
             }
           } catch (error: any) {
             telemetryRef?.track("generation_failed", {
@@ -1466,30 +1471,13 @@ export async function activate(context: vscode.ExtensionContext) {
               inserted_diagram.data.length > 0
             ) {
               progress.report({ increment: 100 });
-              const diagramId = inserted_diagram.data[0].id;
-
-              persistRawFetchDiagram(stateManager, {
-                id: diagramId,
+              showGeneratedDiagram({
+                id: inserted_diagram.data[0].id,
                 title: title ?? "Untitled diagram",
                 description: selection,
                 type: DiagramType.Class,
                 mermaidCode: diagram,
               });
-
-              const diagramUrl = `https://flowcraft.app/vscode/${diagramId}`;
-
-              vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-
-              vscode.window
-                .showInformationMessage(
-                  "The diagram has been successfully generated. If the diagram does not open automatically, please click on the link below.",
-                  "Open Diagram"
-                )
-                .then((selection) => {
-                  if (selection === "Open Diagram") {
-                    vscode.env.openExternal(vscode.Uri.parse(diagramUrl));
-                  }
-                });
             }
           } catch (error: any) {
             vscode.window.showErrorMessage(

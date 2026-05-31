@@ -102,6 +102,13 @@ function wireLinks() {
       postMessage('syncUsage');
     });
   }
+  const upgrade = getById('link-upgrade');
+  if (upgrade) {
+    upgrade.addEventListener('click', (e) => {
+      e.preventDefault();
+      postMessage('upgrade');
+    });
+  }
 }
 
 function renderUsage(usage) {

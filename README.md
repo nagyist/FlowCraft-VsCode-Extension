@@ -61,6 +61,21 @@ Open the **FlowCraft Settings** sidebar panel to configure:
 
 Or access VS Code's settings (`Cmd+,` / `Ctrl+,`) and search for `FlowCraft` for the underlying keys.
 
+## ✨ FlowCraft Premium
+
+**Diagram generation is always free and BYOK** — you bring your own provider key and FlowCraft never charges for or routes your generations. Premium is an optional account-level upgrade that unlocks convenience features on top:
+
+| | Free | Premium |
+| --- | --- | --- |
+| AI diagram generation (BYOK) | ✓ Unlimited | ✓ Unlimited |
+| Mermaid, infographics & illustrations | ✓ | ✓ |
+| In-editor preview + SVG / PNG / PDF export | ✓ | ✓ |
+| **Cloud history sync** (diagrams on the web + across machines) | — | ✓ |
+| **Premium templates** (curated, ready-to-edit library) | — | ✓ |
+| **Advanced exports** (hi-res PNG 3×/4×, data-URI, Markdown bundle, batch export) | — | ✓ |
+
+Sign in from the **FlowCraft** sidebar to manage your plan. See pricing at **[flowcraft.app/dashboard/pricing](https://flowcraft.app/dashboard/pricing)**.
+
 ## Contributing & Support
 
 We love feedback!

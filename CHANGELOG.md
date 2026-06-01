@@ -4,7 +4,14 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [2.7.1] - 2026-05-30
+## [2.8.0] - 2026-06-01
+
+### Added
+- **First-run onboarding.** New installs now get a guided **Get Started** walkthrough (set up a provider key, generate your first diagram, discover more) that opens automatically the first time you launch FlowCraft without an API key. A new **FlowCraft: Set Up API Key** command walks you through picking a provider and pasting a validated key.
+- **Upgrade nudges.** When you exhaust your free generations, FlowCraft now surfaces a one-time, non-blocking nudge with a link to upgrade — and the Welcome view's upgrade link is wired to the pricing page.
+
+### Changed
+- **Marketplace listing** refreshed: gallery banner, plus a Premium / pricing section in the README outlining what's free vs. Premium.
 
 ### Fixed
 - **"Open on web" no longer silently does nothing** in the in-extension diagram viewer. Generated diagrams now record their server id, so the button reliably opens the diagram on flowcraft.app. When a diagram genuinely isn't on the web yet (created locally and not synced), the button is disabled and offers to **Sign in to sync** instead of showing a dead-end toast.

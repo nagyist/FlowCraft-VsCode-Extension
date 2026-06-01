@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { StateManager } from '../state/state-manager';
 import { UsageService } from '../services/usage-service';
 import { AuthService } from '../services/auth-service';
+import { TelemetryService } from '../services/telemetry-service';
+import { FLOWCRAFT_PRICING_URL } from '../services/premium-gate';
 import { setupMessageListener, getNonce, getWebviewUri } from '../utils/webview-utils';
 
 export class WelcomeViewProvider implements vscode.WebviewViewProvider {
@@ -12,7 +14,8 @@ export class WelcomeViewProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly stateManager: StateManager,
     private readonly usageService: UsageService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly telemetry: TelemetryService
   ) {}
 
   async resolveWebviewView(
@@ -44,6 +47,10 @@ export class WelcomeViewProvider implements vscode.WebviewViewProvider {
       openSettings: async () => { await vscode.commands.executeCommand('flowcraft.openSettings'); },
       resetApiKeys: async () => { await vscode.commands.executeCommand('flowcraft.resetApiKey'); },
       syncUsage: async () => { await vscode.commands.executeCommand('flowcraft.syncUsage'); },
+      upgrade: async () => {
+        this.telemetry.track('upgrade_link_clicked');
+        await vscode.env.openExternal(vscode.Uri.parse(FLOWCRAFT_PRICING_URL));
+      },
       checkUsage: async () => this.sendUsageData(),
       signIn:  async () => { await vscode.commands.executeCommand('flowcraft.signIn'); },
       signOut: async () => { await vscode.commands.executeCommand('flowcraft.signOut'); }

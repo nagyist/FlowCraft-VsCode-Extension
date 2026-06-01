@@ -15,7 +15,7 @@ import { initLogger } from "./utils/logger";
 import { TelemetryService } from "./services/telemetry-service";
 import { EntitlementService } from "./services/entitlement-service";
 import { CloudSyncService } from "./services/cloud-sync-service";
-import { requirePremium } from "./services/premium-gate";
+import { requirePremium, FLOWCRAFT_PRICING_URL } from "./services/premium-gate";
 import { RenderService } from "./services/render-service";
 import { ExportService } from "./services/export-service";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
@@ -26,6 +26,46 @@ const OPENAI_KEY_SECRET = "flowcraft.openai.key";
 // Set during activate(); lets module-level helpers (e.g. the legacy fetch flows)
 // emit telemetry without threading the service through every call.
 let telemetryRef: TelemetryService | undefined;
+// Same idea for usage, so the post-generation upgrade nudge can read it.
+let usageServiceRef: UsageService | undefined;
+// Show the soft upgrade nudge at most once per session (avoid nagging).
+let upgradeNudgedThisSession = false;
+
+/**
+ * After a successful generation, gently nudge a free user who is at/near their
+ * limit toward Premium — at most once per session. Generation stays free + BYOK;
+ * this only surfaces account-level premium (cloud sync, templates, exports).
+ */
+function maybeNudgeUpgrade(): void {
+  const usageService = usageServiceRef;
+  if (!usageService || upgradeNudgedThisSession) {
+    return;
+  }
+  const usage = usageService.getUsage();
+  if (usage.subscribed) {
+    return;
+  }
+  const remaining = usageService.getRemaining();
+  const atLimit = remaining <= 0;
+  if (!atLimit && !usageService.isApproachingLimit(70)) {
+    return;
+  }
+  upgradeNudgedThisSession = true;
+  if (atLimit) {
+    telemetryRef?.track("free_limit_exhausted");
+  }
+  const message = atLimit
+    ? "You've reached your FlowCraft free limit. Upgrade to Premium for unlimited cloud sync, premium templates, and advanced exports."
+    : `You have ${remaining} FlowCraft diagram${remaining === 1 ? "" : "s"} left this period. Upgrade anytime for unlimited.`;
+  vscode.window
+    .showInformationMessage(message, "See Premium", "Not now")
+    .then((choice) => {
+      if (choice === "See Premium") {
+        telemetryRef?.track("upgrade_clicked");
+        vscode.env.openExternal(vscode.Uri.parse(FLOWCRAFT_PRICING_URL));
+      }
+    });
+}
 
 const GENERATE_FLOW_DIAGRAM = "flowcraft.generateFlowDiagram";
 const GENERATE_SELECTION_FLOW_DIAGRAM =
@@ -111,6 +151,7 @@ function persistRawFetchDiagram(
       diagram_type: params.type,
       provider: stateManager.getSetting("defaultProvider"),
     });
+    maybeNudgeUpgrade();
     return diagram;
   } catch (err) {
     console.error("Failed to persist diagram to history:", err);
@@ -350,6 +391,7 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   const usageService = new UsageService(apiClient, stateManager, apiKeyService, authService);
+  usageServiceRef = usageService;
   const diagramService = new DiagramService(
     apiClient,
     stateManager,
@@ -503,7 +545,8 @@ export async function activate(context: vscode.ExtensionContext) {
     context.extensionUri,
     stateManager,
     usageService,
-    authService
+    authService,
+    telemetry
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

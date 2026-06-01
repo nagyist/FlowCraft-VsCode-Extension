@@ -26,6 +26,8 @@ export type TelemetryEventName =
   | "generation_failed"
   | "upgrade_prompt_shown"
   | "upgrade_clicked"
+  | "upgrade_link_clicked"
+  | "free_limit_exhausted"
   | "signed_in";
 
 export interface TelemetryProps {

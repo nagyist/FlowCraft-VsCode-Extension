@@ -40,6 +40,8 @@ export class RenderService implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private current: Diagram | undefined;
   private themeOverride: "light" | "dark" | undefined;
+  /** Whether the most recent render of `current` succeeded. Undefined = not rendered yet. */
+  private lastRenderOk: boolean | undefined;
 
   private ready: Promise<void> | undefined;
   private readyResolve: (() => void) | undefined;
@@ -66,6 +68,7 @@ export class RenderService implements vscode.Disposable {
     }
     this.current = diagram;
     this.themeOverride = undefined;
+    this.lastRenderOk = undefined;
     const panel = this.ensurePanel();
     panel.title = `FlowCraft · ${diagram.title || "diagram"}`;
     panel.reveal(vscode.ViewColumn.Beside, false);
@@ -161,6 +164,11 @@ export class RenderService implements vscode.Disposable {
     }
     const theme = this.themeOverride ?? getThemeKind();
 
+    // Tell the webview whether "Open on web" can resolve a URL for this diagram,
+    // so it can disable the button instead of looking like a dead no-op.
+    const canOpenWeb = !!(this.current && this.webUrlFor?.(this.current));
+    panel.webview.postMessage({ command: "uiState", data: { canOpenWeb } });
+
     const done = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.renderWaiter = undefined;
@@ -213,6 +221,7 @@ export class RenderService implements vscode.Disposable {
           break;
         }
         clearTimeout(waiter.timer);
+        this.lastRenderOk = !!data.ok;
         if (data.ok) {
           waiter.resolve();
         } else {
@@ -264,6 +273,14 @@ export class RenderService implements vscode.Disposable {
         }
         break;
       case "toggleTheme": {
+        // Don't bother re-rendering a diagram whose Mermaid is broken — it will
+        // just fail again. Tell the user to fix the code first.
+        if (this.lastRenderOk === false) {
+          vscode.window.showWarningMessage(
+            "FlowCraft: this diagram has a Mermaid error — fix the code before switching themes."
+          );
+          break;
+        }
         const currently = this.themeOverride ?? getThemeKind();
         this.themeOverride = currently === "dark" ? "light" : "dark";
         await this.renderCurrent().catch((err) =>
@@ -276,9 +293,15 @@ export class RenderService implements vscode.Disposable {
         if (url) {
           await vscode.env.openExternal(vscode.Uri.parse(url));
         } else {
-          vscode.window.showInformationMessage(
-            "FlowCraft: this diagram isn't synced to the web yet."
+          // No web URL — almost always because the diagram was created locally
+          // and never synced. Offer the path that fixes it instead of a dead-end toast.
+          const choice = await vscode.window.showInformationMessage(
+            "FlowCraft: this diagram isn't on the web yet. Sign in to sync your diagrams to flowcraft.app.",
+            "Sign in to sync"
           );
+          if (choice === "Sign in to sync") {
+            await vscode.commands.executeCommand("flowcraft.signIn");
+          }
         }
         break;
       }
@@ -348,14 +371,24 @@ export class RenderService implements vscode.Disposable {
       border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.4));
       border-radius: 4px; padding: 4px 10px;
     }
-    .toolbar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.18)); }
+    .toolbar button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.18)); }
+    .toolbar button:disabled { opacity: 0.4; cursor: default; }
     .toolbar .spacer { flex: 1 1 auto; }
     .stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
     #diagram { display: flex; justify-content: center; }
     #diagram svg { max-width: 100%; height: auto; }
-    .err {
-      white-space: pre-wrap; color: var(--vscode-errorForeground, #f14c4c);
-      font-family: var(--vscode-editor-font-family, monospace); padding: 12px;
+    .err { padding: 16px; max-width: 720px; margin: 0 auto; }
+    .err h3 {
+      margin: 0 0 8px; font-size: 13px; font-weight: 600;
+      color: var(--vscode-errorForeground, #f14c4c);
+    }
+    .err p { margin: 0 0 10px; color: var(--vscode-descriptionForeground, var(--vscode-foreground)); }
+    .err pre {
+      white-space: pre-wrap; word-break: break-word; margin: 0;
+      padding: 10px; border-radius: 4px;
+      background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.12));
+      color: var(--vscode-errorForeground, #f14c4c);
+      font-family: var(--vscode-editor-font-family, monospace); font-size: 12px;
     }
   </style>
 </head>
@@ -365,7 +398,7 @@ export class RenderService implements vscode.Disposable {
     <button id="tb-export" title="Export this diagram">Export…</button>
     <span class="spacer"></span>
     <button id="tb-theme" title="Toggle light / dark rendering">Theme</button>
-    <button id="tb-web" title="Open the synced diagram on flowcraft.app">Open on web</button>
+    <button id="tb-web" title="Open the synced diagram on flowcraft.app" disabled>Open on web</button>
   </div>
   <div class="stage"><div id="diagram"></div></div>
 
@@ -386,6 +419,27 @@ export class RenderService implements vscode.Disposable {
         } catch (e) { /* ignore */ }
       }
 
+      function setEnabled(id, on) {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = !on; }
+      }
+
+      function showRenderError(msg) {
+        container.innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.className = "err";
+        const h = document.createElement("h3");
+        h.textContent = "This diagram couldn't be rendered";
+        const p = document.createElement("p");
+        p.textContent = "Mermaid rejected the diagram code. Fix the syntax error below, then regenerate or edit the source.";
+        const pre = document.createElement("pre");
+        pre.textContent = msg;
+        wrap.appendChild(h);
+        wrap.appendChild(p);
+        wrap.appendChild(pre);
+        container.appendChild(wrap);
+      }
+
       async function render(code, theme) {
         initMermaid(theme);
         const id = "fc-graph-" + (++renderSeq);
@@ -394,14 +448,16 @@ export class RenderService implements vscode.Disposable {
           container.innerHTML = out.svg;
           const svgEl = container.querySelector("svg");
           const dims = svgDims(svgEl);
+          // Render succeeded — Theme + Export are meaningful again.
+          setEnabled("tb-theme", true);
+          setEnabled("tb-export", true);
           vscode.postMessage({ command: "rendered", data: { ok: true, width: dims.w, height: dims.h } });
         } catch (e) {
           const msg = (e && e.message) ? e.message : String(e);
-          container.innerHTML = "";
-          const pre = document.createElement("pre");
-          pre.className = "err";
-          pre.textContent = "Mermaid error:\\n" + msg;
-          container.appendChild(pre);
+          showRenderError(msg);
+          // Nothing is rendered — Theme would just re-fail and Export has nothing to produce.
+          setEnabled("tb-theme", false);
+          setEnabled("tb-export", false);
           vscode.postMessage({ command: "rendered", data: { ok: false, error: msg } });
         }
       }
@@ -476,6 +532,7 @@ export class RenderService implements vscode.Disposable {
         const m = ev.data || {};
         if (m.command === "render") { render(m.data.code, m.data.theme); }
         else if (m.command === "produceExport") { produceExport(m.data.requestId, m.data.format, m.data.scale, m.data.background); }
+        else if (m.command === "uiState") { setEnabled("tb-web", !!(m.data && m.data.canOpenWeb)); }
       });
 
       document.getElementById("tb-copy").addEventListener("click", function () { vscode.postMessage({ command: "toolbar", data: { action: "copyCode" } }); });

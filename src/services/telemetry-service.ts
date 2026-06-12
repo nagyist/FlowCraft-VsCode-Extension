@@ -28,13 +28,20 @@ export type TelemetryEventName =
   | "upgrade_clicked"
   | "upgrade_link_clicked"
   | "free_limit_exhausted"
-  | "signed_in";
+  | "signed_in"
+  | "refine_requested"
+  | "refine_succeeded"
+  | "refine_failed"
+  | "visualize_requested"
+  | "markdown_insert_requested";
 
 export interface TelemetryProps {
   diagram_type?: string;
   provider?: string;
   outcome?: string;
   error_kind?: string;
+  /** Entry surface for visualize/refine, e.g. "file" | "folder" | "selection" | "markdown". */
+  surface?: string;
 }
 
 interface QueuedEvent extends TelemetryProps {

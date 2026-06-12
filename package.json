@@ -168,6 +168,16 @@
         "command": "flowcraft.signOut",
         "title": "FlowCraft: Sign Out",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "flowcraft.visualizeThis",
+        "title": "FlowCraft: Visualize this",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "flowcraft.insertMermaidBlock",
+        "title": "FlowCraft: Insert diagram here",
+        "icon": "$(add)"
       }
     ],
     "menus": {
@@ -185,19 +195,18 @@
       ],
       "editor/context": [
         {
-          "when": "editorHasSelection",
-          "command": "flowcraft.generateFromSelection",
+          "command": "flowcraft.visualizeThis",
           "group": "flowcraft@1"
         },
         {
-          "when": "!editorHasSelection",
-          "command": "flowcraft.generateFromFile",
+          "when": "editorLangId == markdown",
+          "command": "flowcraft.insertMermaidBlock",
           "group": "flowcraft@2"
         }
       ],
       "explorer/context": [
         {
-          "command": "flowcraft.generateFromFile",
+          "command": "flowcraft.visualizeThis",
           "group": "flowcraft@1"
         }
       ]

@@ -4,6 +4,13 @@ All notable changes to the "flowcraft" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.9.0] - 2026-06-11
+
+### Added
+- **Conversational refine loop.** The in-extension diagram viewer now has a **Refine** bar: type a natural-language change ("make it left-to-right", "add the error path", "simplify") and the diagram is regenerated from its *current* Mermaid source plus your instruction — no re-prompting from scratch. A **↶ Back** button steps back through your refinement history.
+- **Right-click "Visualize this".** A single **FlowCraft: Visualize this** action on a file, a multi-file folder, or a highlighted selection generates a diagram with zero typing — the prompt is built from the code itself and the diagram type is chosen heuristically (flowchart for procedural code, class diagram for OOP, architecture graph for folders). Pick a different type from the viewer's **Type…** dropdown to re-generate.
+- **Mermaid-in-Markdown authoring.** Markdown files now show **Preview** / **Refine** CodeLenses above every ` ```mermaid ` block — preview renders it in the viewer, refine rewrites the block in place from a natural-language instruction. A new **FlowCraft: Insert diagram here** command generates a Mermaid block from a prompt and inserts it at your cursor.
+
 ## [2.8.0] - 2026-06-01
 
 ### Added

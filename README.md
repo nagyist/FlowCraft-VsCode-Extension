@@ -27,6 +27,9 @@ Generate widespread diagram standards and creative assets:
 
 ### Seamless In-Editor Experience
 *   **Integrated Viewer**: View, zoom, and pan diagrams without leaving VS Code.
+*   **Visualize this (zero typing)**: Right-click a file, a folder, or a selection → **FlowCraft: Visualize this**. FlowCraft reads the code, picks a sensible diagram type (flowchart, class diagram, or an architecture graph for folders), and generates — no prompt to write. Change the type from the viewer's **Type…** dropdown.
+*   **Conversational refine**: Don't like the result? Type a plain-English change in the viewer's **Refine** bar — *"make it left-to-right"*, *"add the error path"*, *"simplify"* — and FlowCraft edits the existing diagram instead of starting over. **↶ Back** steps through your history.
+*   **Mermaid in Markdown**: Open any `.md` file and FlowCraft adds **Preview** / **Refine** actions above every ` ```mermaid ` block. Preview renders it in the viewer; Refine rewrites it in place. Use **FlowCraft: Insert diagram here** to generate a Mermaid block from a description right at your cursor.
 *   **History & Management**: Access, regenerate, or duplicate past diagrams from a dedicated history view.
 *   **Export**: One-click export to **SVG**, **PNG**, or **PDF**.
 
@@ -47,9 +50,19 @@ Generate widespread diagram standards and creative assets:
 
 ### Generating Diagrams
 You can generate diagrams in multiple ways:
+*   **Visualize this**: Right-click a file/folder/selection > `FlowCraft: Visualize this` — zero typing.
 *   **Context Menu**: Select code, Right-click > `FlowCraft: Generate...`
 *   **Command Palette**: `Ctrl+Shift+P` (or `Cmd+Shift+P`) > type `FlowCraft`
 *   **Sidebar UI**: Use the visual "Create Diagram" interface to select type, complexity, and style.
+
+### Refining Diagrams
+Generation rarely nails it on the first try, so you don't have to start over:
+*   In the diagram viewer, type a change in the **Refine** bar (e.g. *"make it left-to-right"*) and hit **Refine**. **↶ Back** undoes a step.
+*   In Markdown, click **Refine** above a ` ```mermaid ` block to rewrite it in place from a plain-English instruction.
+
+### Authoring in Markdown
+*   Open a `.md` file with ` ```mermaid ` blocks to get **Preview** / **Refine** actions above each one.
+*   Run `FlowCraft: Insert diagram here` to generate and drop a Mermaid block at your cursor.
 
 ## Configuration
 

@@ -56,6 +56,19 @@ export class RenderService implements vscode.Disposable {
   /** Wired by extension.ts so "Open on web" can resolve the right URL (or undefined). */
   public webUrlFor: ((diagram: Diagram) => string | undefined) | undefined;
 
+  /** Wired by extension.ts to run a refinement; returns updated Mermaid code. */
+  public onRefine:
+    | ((diagram: Diagram, instruction: string) => Promise<string>)
+    | undefined;
+
+  /** Wired by extension.ts to re-generate the current diagram as another type. */
+  public onChangeType:
+    | ((diagram: Diagram, apiType: string) => void | Promise<void>)
+    | undefined;
+
+  /** Per-active-diagram refine history (Mermaid versions), oldest first. */
+  private refineStack: string[] = [];
+
   constructor(private readonly extensionUri: vscode.Uri) {}
 
   /** Reveal the viewer panel and render `diagram` (the interactive in-extension viewer). */
@@ -69,6 +82,7 @@ export class RenderService implements vscode.Disposable {
     this.current = diagram;
     this.themeOverride = undefined;
     this.lastRenderOk = undefined;
+    this.refineStack = [diagram.content ?? ""];
     const panel = this.ensurePanel();
     panel.title = `FlowCraft · ${diagram.title || "diagram"}`;
     panel.reveal(vscode.ViewColumn.Beside, false);
@@ -169,6 +183,11 @@ export class RenderService implements vscode.Disposable {
     const canOpenWeb = !!(this.current && this.webUrlFor?.(this.current));
     panel.webview.postMessage({ command: "uiState", data: { canOpenWeb } });
 
+    panel.webview.postMessage({
+      command: "refineState",
+      data: { steps: this.refineStack.length, busy: false },
+    });
+
     const done = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.renderWaiter = undefined;
@@ -249,7 +268,15 @@ export class RenderService implements vscode.Disposable {
         break;
       }
       case "toolbar": {
-        void this.handleToolbar(data.action);
+        void this.handleToolbar(data.action, data.type);
+        break;
+      }
+      case "refine": {
+        void this.handleRefine(String(data.instruction ?? ""));
+        break;
+      }
+      case "refineUndo": {
+        void this.handleRefineUndo();
         break;
       }
       default:
@@ -257,7 +284,39 @@ export class RenderService implements vscode.Disposable {
     }
   }
 
-  private async handleToolbar(action: string): Promise<void> {
+  private async handleRefine(instruction: string): Promise<void> {
+    const diagram = this.current;
+    if (!diagram || !instruction.trim() || !this.onRefine) {
+      return;
+    }
+    this.panel?.webview.postMessage({
+      command: "refineState",
+      data: { steps: this.refineStack.length, busy: true },
+    });
+    try {
+      const newCode = await this.onRefine(diagram, instruction.trim());
+      diagram.content = newCode;
+      this.refineStack.push(newCode);
+      await this.renderCurrent();
+    } catch (err) {
+      this.panel?.webview.postMessage({
+        command: "refineError",
+        data: { message: (err as Error).message || "Refine failed." },
+      });
+    }
+  }
+
+  private async handleRefineUndo(): Promise<void> {
+    const diagram = this.current;
+    if (!diagram || this.refineStack.length <= 1) {
+      return;
+    }
+    this.refineStack.pop();
+    diagram.content = this.refineStack[this.refineStack.length - 1];
+    await this.renderCurrent();
+  }
+
+  private async handleToolbar(action: string, type?: string): Promise<void> {
     const diagram = this.current;
     if (!diagram) {
       return;
@@ -302,6 +361,12 @@ export class RenderService implements vscode.Disposable {
           if (choice === "Sign in to sync") {
             await vscode.commands.executeCommand("flowcraft.signIn");
           }
+        }
+        break;
+      }
+      case "changeType": {
+        if (type && this.onChangeType && this.current) {
+          await this.onChangeType(this.current, type);
         }
         break;
       }
@@ -390,17 +455,61 @@ export class RenderService implements vscode.Disposable {
       color: var(--vscode-errorForeground, #f14c4c);
       font-family: var(--vscode-editor-font-family, monospace); font-size: 12px;
     }
+    .toolbar select {
+      font: inherit; cursor: pointer;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryBackground, transparent);
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.4));
+      border-radius: 4px; padding: 4px 6px;
+    }
+    .refinebar {
+      display: flex; gap: 6px; align-items: center;
+      padding: 8px 10px;
+      border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
+      flex: 0 0 auto;
+    }
+    .refinebar input {
+      flex: 1 1 auto; font: inherit;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4));
+      border-radius: 4px; padding: 5px 8px;
+    }
+    .refinebar button {
+      font: inherit; cursor: pointer;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryBackground, transparent);
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.4));
+      border-radius: 4px; padding: 4px 10px;
+    }
+    .refinebar button:disabled { opacity: 0.4; cursor: default; }
+    .refinebar .hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .refinebar .err { color: var(--vscode-errorForeground, #f14c4c); font-size: 11px; }
   </style>
 </head>
 <body>
   <div class="toolbar">
     <button id="tb-copy" title="Copy Mermaid code">Copy code</button>
     <button id="tb-export" title="Export this diagram">Export…</button>
+    <select id="tb-type" title="Re-generate as a different diagram type">
+      <option value="">Type…</option>
+      <option value="flowchart">Flowchart</option>
+      <option value="classDiagram">Class</option>
+      <option value="sequenceDiagram">Sequence</option>
+      <option value="stateDiagram">State</option>
+      <option value="erDiagram">ER</option>
+    </select>
     <span class="spacer"></span>
     <button id="tb-theme" title="Toggle light / dark rendering">Theme</button>
     <button id="tb-web" title="Open the synced diagram on flowcraft.app" disabled>Open on web</button>
   </div>
   <div class="stage"><div id="diagram"></div></div>
+  <div class="refinebar">
+    <input id="rf-input" type="text" placeholder="Refine: e.g. 'make it left-to-right', 'add the error path'…" />
+    <button id="rf-go" title="Apply this change">Refine</button>
+    <button id="rf-undo" title="Step back to the previous version" disabled>↶ Back</button>
+    <span id="rf-status" class="hint"></span>
+  </div>
 
   <script nonce="${nonce}" src="${mermaidUri}"></script>
   <script nonce="${nonce}">
@@ -533,12 +642,49 @@ export class RenderService implements vscode.Disposable {
         if (m.command === "render") { render(m.data.code, m.data.theme); }
         else if (m.command === "produceExport") { produceExport(m.data.requestId, m.data.format, m.data.scale, m.data.background); }
         else if (m.command === "uiState") { setEnabled("tb-web", !!(m.data && m.data.canOpenWeb)); }
+        else if (m.command === "refineState") {
+          const busy = !!(m.data && m.data.busy);
+          rfGo.disabled = busy;
+          rfInput.disabled = busy;
+          rfUndo.disabled = !(m.data && m.data.steps > 1);
+          rfStatus.className = "hint";
+          rfStatus.textContent = busy ? "Refining…" : "";
+          if (!busy) { rfInput.value = ""; }
+        }
+        else if (m.command === "refineError") {
+          rfGo.disabled = false; rfInput.disabled = false;
+          rfStatus.className = "err";
+          rfStatus.textContent = (m.data && m.data.message) || "Refine failed.";
+        }
       });
 
       document.getElementById("tb-copy").addEventListener("click", function () { vscode.postMessage({ command: "toolbar", data: { action: "copyCode" } }); });
       document.getElementById("tb-export").addEventListener("click", function () { vscode.postMessage({ command: "toolbar", data: { action: "export" } }); });
       document.getElementById("tb-theme").addEventListener("click", function () { vscode.postMessage({ command: "toolbar", data: { action: "toggleTheme" } }); });
       document.getElementById("tb-web").addEventListener("click", function () { vscode.postMessage({ command: "toolbar", data: { action: "openWeb" } }); });
+      document.getElementById("tb-type").addEventListener("change", function (e) {
+        const type = e.target.value;
+        if (type) { vscode.postMessage({ command: "toolbar", data: { action: "changeType", type: type } }); }
+        e.target.value = "";
+      });
+
+      const rfInput = document.getElementById("rf-input");
+      const rfGo = document.getElementById("rf-go");
+      const rfUndo = document.getElementById("rf-undo");
+      const rfStatus = document.getElementById("rf-status");
+
+      function submitRefine() {
+        const instruction = (rfInput.value || "").trim();
+        if (!instruction) { return; }
+        vscode.postMessage({ command: "refine", data: { instruction: instruction } });
+      }
+      rfGo.addEventListener("click", submitRefine);
+      rfInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { submitRefine(); }
+      });
+      rfUndo.addEventListener("click", function () {
+        vscode.postMessage({ command: "refineUndo" });
+      });
 
       vscode.postMessage({ command: "ready" });
     })();

@@ -17,6 +17,11 @@ import { EntitlementService } from "./services/entitlement-service";
 import { CloudSyncService } from "./services/cloud-sync-service";
 import { requirePremium, FLOWCRAFT_PRICING_URL } from "./services/premium-gate";
 import { RenderService } from "./services/render-service";
+import { RefineService } from "./services/refine-service";
+import { pickDiagramType } from "./utils/diagram-heuristics";
+import { buildFileContext, summarizeFolder } from "./utils/visualize-context";
+import { toApiType } from "./services/diagram-type-map";
+import { MermaidCodeLensProvider } from "./providers/mermaid-codelens";
 import { ExportService } from "./services/export-service";
 import { Diagram, DiagramCategory, DiagramType, Provider } from "./types";
 
@@ -526,6 +531,45 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }
     );
+  };
+
+  // Shared refinement service (used by the viewer refine loop + Markdown CodeLens).
+  const refineService = new RefineService(
+    authResolver,
+    () => process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL
+  );
+
+  renderService.onRefine = async (diagram, instruction) => {
+    telemetry.track("refine_requested", { diagram_type: diagram.type });
+    try {
+      const result = await refineService.refine({
+        currentCode: diagram.content ?? "",
+        instruction,
+        diagramType: diagram.type,
+        title: diagram.title,
+      });
+      telemetry.track("refine_succeeded", { diagram_type: diagram.type });
+      return result.code;
+    } catch (err) {
+      telemetry.track("refine_failed", {
+        diagram_type: diagram.type,
+        error_kind: classifyErrorKind((err as Error).message),
+      });
+      throw err;
+    }
+  };
+
+  renderService.onChangeType = async (diagram, apiType) => {
+    telemetry.track("visualize_requested", {
+      surface: "type_override",
+      diagram_type: apiType,
+    });
+    await runMermaidGeneration({
+      body: { title: diagram.title, description: diagram.description, type: apiType },
+      diagramType: diagram.type,
+      description: diagram.description,
+      errorMessage: "FlowCraft couldn't re-generate as that type.",
+    });
   };
 
   // Emit a `signed_in` telemetry event on a null → session transition.
@@ -1269,6 +1313,228 @@ export async function activate(context: vscode.ExtensionContext) {
   let generateFromFileCommand = vscode.commands.registerCommand(
     "flowcraft.generateFromFile",
     () => vscode.commands.executeCommand(GENERATE_FLOW_DIAGRAM)
+  );
+
+  // 🪄 Visualize this — zero-typing diagram from a file / folder / selection.
+  let visualizeThisCommand = vscode.commands.registerCommand(
+    "flowcraft.visualizeThis",
+    async (uri?: vscode.Uri) => {
+      const editor = vscode.window.activeTextEditor;
+      let surface: string;
+      let code: string;
+      let isFolder = false;
+      let title = "Visualize";
+      let languageId = "";
+
+      if (uri) {
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.type === vscode.FileType.Directory) {
+          isFolder = true;
+          surface = "folder";
+          const found = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(uri, "**/*.{ts,tsx,js,jsx,py,java,go,rb,cs}"),
+            "**/node_modules/**",
+            40
+          );
+          const files: { relPath: string; text: string }[] = [];
+          for (const file of found) {
+            const bytes = await vscode.workspace.fs.readFile(file);
+            files.push({
+              relPath: vscode.workspace.asRelativePath(file),
+              text: Buffer.from(bytes).toString("utf8"),
+            });
+          }
+          code = summarizeFolder(uri.path.split("/").pop() || "folder", files);
+          title = (uri.path.split("/").pop() || "folder").replace(/\s/g, "_");
+        } else {
+          surface = "file";
+          const doc = await vscode.workspace.openTextDocument(uri);
+          languageId = doc.languageId;
+          code = buildFileContext(doc.getText());
+          title = (uri.path.split("/").pop() || "file").replace(/\s/g, "_");
+        }
+      } else if (editor) {
+        const sel = editor.document.getText(editor.selection);
+        const hasSel = sel.trim().length > 0;
+        surface = hasSel ? "selection" : "file";
+        languageId = editor.document.languageId;
+        code = buildFileContext(hasSel ? sel : editor.document.getText());
+        title = (editor.document.fileName.split("/").pop() || "file").replace(/\s/g, "_");
+      } else {
+        vscode.window.showErrorMessage(
+          "FlowCraft: open a file or pick one in the explorer to visualize."
+        );
+        return;
+      }
+
+      if (!code.trim()) {
+        vscode.window.showErrorMessage(
+          "FlowCraft: nothing to visualize (the selection/file is empty)."
+        );
+        return;
+      }
+
+      const diagramType = pickDiagramType(code, languageId, isFolder);
+      telemetry.track("visualize_requested", { surface, diagram_type: diagramType });
+
+      await runMermaidGeneration({
+        body: { title, description: code, type: toApiType(diagramType) },
+        diagramType,
+        description: code,
+        errorMessage:
+          "FlowCraft couldn't visualize this. Try a smaller file or selection.",
+      });
+    }
+  );
+  context.subscriptions.push(visualizeThisCommand);
+
+  // 📝 Mermaid-in-Markdown: CodeLens (Preview / Refine) + insert command.
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      { language: "markdown" },
+      new MermaidCodeLensProvider()
+    )
+  );
+
+  const readBlockCode = (
+    doc: vscode.TextDocument,
+    startLine: number,
+    endLine: number
+  ): string => {
+    const lines: string[] = [];
+    for (let i = startLine + 1; i < endLine; i++) {
+      lines.push(doc.lineAt(i).text);
+    }
+    return lines.join("\n");
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "flowcraft.previewMermaidBlock",
+      async (uri: vscode.Uri, startLine: number, endLine: number) => {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const code = readBlockCode(doc, startLine, endLine);
+        const now = new Date();
+        void renderService.view({
+          id: `md_${startLine}`,
+          title: "Markdown diagram",
+          description: "Mermaid block",
+          type: DiagramType.Flowchart,
+          category: DiagramCategory.Mermaid,
+          content: code,
+          isPublic: false,
+          createdAt: now,
+          updatedAt: now,
+          tokensUsed: 0,
+        });
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "flowcraft.refineMermaidBlock",
+      async (uri: vscode.Uri, startLine: number, endLine: number) => {
+        const instruction = await vscode.window.showInputBox({
+          title: "FlowCraft · refine this diagram",
+          placeHolder: "e.g. make it left-to-right, add the error path…",
+          ignoreFocusOut: true,
+        });
+        if (!instruction) {
+          return;
+        }
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const code = readBlockCode(doc, startLine, endLine);
+        telemetry.track("refine_requested", { surface: "markdown" });
+        try {
+          const result = await refineService.refine({
+            currentCode: code,
+            instruction,
+            diagramType: DiagramType.Flowchart,
+          });
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            uri,
+            new vscode.Range(startLine + 1, 0, endLine, 0),
+            result.code + "\n"
+          );
+          await vscode.workspace.applyEdit(edit);
+          telemetry.track("refine_succeeded", { surface: "markdown" });
+        } catch (err) {
+          telemetry.track("refine_failed", {
+            surface: "markdown",
+            error_kind: classifyErrorKind((err as Error).message),
+          });
+          vscode.window.showErrorMessage(`FlowCraft: ${(err as Error).message}`);
+        }
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("flowcraft.insertMermaidBlock", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage(
+          "FlowCraft: open a Markdown file to insert a diagram."
+        );
+        return;
+      }
+      const prompt = await vscode.window.showInputBox({
+        title: "FlowCraft · insert diagram",
+        placeHolder: "Describe the diagram to insert, e.g. 'auth login sequence'…",
+        ignoreFocusOut: true,
+        validateInput: (v: string) =>
+          !v || !v.trim()
+            ? "Please describe the diagram"
+            : v.length > 10000
+            ? "Description is too long (max 10,000 characters)"
+            : null,
+      });
+      if (!prompt) {
+        return;
+      }
+
+      telemetry.track("markdown_insert_requested", { surface: "markdown" });
+      const auth = await resolveAuth(authResolver, stateManager);
+      if (!auth) {
+        return;
+      }
+      const apiUrl = process.env.FLOWCRAFT_API_URL || FLOWCRAFT_API_URL;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "flowcraft › generating",
+          cancellable: false,
+        },
+        async () => {
+          try {
+            const response = await fetch(`${apiUrl}/v2/diagrams/generate`, {
+              method: "POST",
+              headers: buildGenerateHeaders(auth),
+              body: JSON.stringify({
+                title: "Inserted diagram",
+                description: prompt,
+                type: "flowchart",
+              }),
+            });
+            const data: any = await response.json();
+            const code = data?.response?.mermaid_code;
+            if (!code) {
+              vscode.window.showErrorMessage(
+                "FlowCraft didn't return a diagram. Try again."
+              );
+              return;
+            }
+            const snippet = "```mermaid\n" + code + "\n```\n";
+            await editor.edit((b) => b.insert(editor.selection.active, snippet));
+          } catch (err) {
+            vscode.window.showErrorMessage(`FlowCraft: ${(err as Error).message}`);
+          }
+        }
+      );
+    })
   );
 
   let generateFlowDiagramDisposable = vscode.commands.registerCommand(
